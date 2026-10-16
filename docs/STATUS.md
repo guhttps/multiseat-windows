@@ -29,8 +29,14 @@ Child Sessions foi um experimento auxiliar, com falha de conexão no ambiente an
 
 A comparação em VM foi preparada, mas não há resultado confirmado da conexão no convidado. Não repetir esse teste como se ele, isoladamente, desbloqueasse a arquitetura. A VM permanece ferramenta de pesquisa para aplicativos comuns.
 
+## Painel e distribuição experimental
+
+O painel em desenvolvimento organiza duas estações, lista os dispositivos disponíveis e guarda um plano no perfil local. A associação de teclado e mouse usa F6 e clique direito dentro do próprio painel. O plano ainda não aplica isolamento a aplicativos externos. Alterações de conexões ou da topologia dos monitores exigem revisar as seleções.
+
+A distribuição do protótipo terá instalador por usuário e pacote portátil para Windows x64. Ela inclui o painel e quatro ferramentas de diagnóstico/teste; experimentos que habilitam sessões, resultados locais e ferramentas administrativas ficam fora do pacote. Consulte [download e instalação](DOWNLOAD-INSTALL.md) para disponibilidade e instruções.
+
 ## Próximo resultado necessário
 
-Demonstrar uma integração de terminal/sessão, display físico e entrada que mantenha dois usuários Windows distintos interagindo ao mesmo tempo, com aplicativos comuns e recuperação de falhas. Áudio, jogos, desempenho, instalação e distribuição vêm depois dessa prova. Os critérios P01–P08 estão em [PRODUCT-SCOPE.md](PRODUCT-SCOPE.md).
+Demonstrar uma integração de terminal/sessão, display físico e entrada que mantenha dois usuários Windows distintos interagindo ao mesmo tempo, com aplicativos comuns e recuperação de falhas. Áudio, jogos, desempenho e distribuição do motor dependem dessa prova. A instalação do painel experimental é uma entrega separada e não aprova o motor. Os critérios P01–P08 estão em [PRODUCT-SCOPE.md](PRODUCT-SCOPE.md).
 
 O estado de retomada e a sequência de trabalho ficam em [DEVELOPMENT-NEXT.md](DEVELOPMENT-NEXT.md). Não instalar drivers ou comprar certificados apenas para demonstrar que um componente carrega; primeiro identificar o mecanismo e o plano de teste recuperável.

@@ -17,7 +17,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          foreach ($file in Get-ChildItem scripts -Filter '*.ps1') {
+          foreach ($file in Get-ChildItem scripts -Filter '*.ps1' -Recurse) {
             $tokens = $null
             $errors = $null
             [Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$errors) | Out-Null
@@ -34,3 +34,8 @@ jobs:
       - name: Validate public-content policy on Windows PowerShell
         shell: powershell
         run: ./scripts/Test-PublicContentSafety.ps1
+      - name: Check public content through the Windows command-line entry point
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -File ./scripts/Test-PublicContent.ps1 -History
+          if ($LASTEXITCODE -ne 0) { throw 'Public-content command-line check failed.' }

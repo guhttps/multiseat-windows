@@ -54,6 +54,31 @@ if(MULTISEAT_BUILD_CHILD_SESSION_HOST)
   add_custom_target(ms-child-session-test ALL DEPENDS "${child_session_executable}")
 endif()
 
+set(control_panel_compiler "$ENV{WINDIR}/Microsoft.NET/Framework64/v4.0.30319/csc.exe")
+if(NOT EXISTS "${control_panel_compiler}")
+  message(FATAL_ERROR ".NET Framework x64 compiler is required to build the Windows control panel.")
+endif()
+set(control_panel_executable "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/MultiseatPrototype.exe")
+file(TO_NATIVE_PATH "${control_panel_executable}" control_panel_executable_native)
+file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/app/app.manifest" control_panel_manifest_native)
+set(control_panel_sources app/Program.cs app/Configuration.cs app/Devices.cs app/MainForm.cs)
+set(control_panel_sources_native)
+foreach(control_panel_source IN LISTS control_panel_sources)
+  file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${control_panel_source}" control_panel_source_native)
+  list(APPEND control_panel_sources_native "${control_panel_source_native}")
+endforeach()
+add_custom_command(
+  OUTPUT "${control_panel_executable}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>"
+  COMMAND "${CMAKE_COMMAND}" -E env --unset=LIB "${control_panel_compiler}"
+    /nologo /target:winexe /platform:x64 /warn:4 /warnaserror+ /debug- /optimize+ /codepage:65001
+    "/out:${control_panel_executable_native}" "/win32manifest:${control_panel_manifest_native}"
+    /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Runtime.Serialization.dll
+    ${control_panel_sources_native}
+  DEPENDS ${control_panel_sources} app/app.manifest
+  VERBATIM)
+add_custom_target(ms-control-panel ALL DEPENDS "${control_panel_executable}")
+
 if(BUILD_TESTING)
   multiseat_experiment(ms-raw-input-tests experiments/tests/raw-input.cpp)
   add_test(NAME raw-input-validation COMMAND ms-raw-input-tests)
@@ -63,6 +88,8 @@ if(BUILD_TESTING)
   add_test(NAME own-panel-routing COMMAND ms-seat-demo --self-test)
   add_test(NAME own-panel-window-smoke COMMAND ms-seat-demo --smoke)
   add_test(NAME child-capability-read-only COMMAND ms-child-session-probe)
+  add_test(NAME control-panel-logic COMMAND "${control_panel_executable}" --self-test)
+  add_test(NAME control-panel-smoke COMMAND "${control_panel_executable}" --smoke)
   if(MULTISEAT_BUILD_CHILD_SESSION_HOST)
     add_test(NAME child-observation-logic COMMAND "${child_session_executable}" --self-test)
     add_test(NAME child-control-smoke COMMAND "${child_session_executable}" --smoke)

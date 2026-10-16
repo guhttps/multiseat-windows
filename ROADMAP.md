@@ -2,6 +2,8 @@
 
 Marcos sequenciais; estimativas de prazo só após M1. Completar um marco exige evidência, não apenas código.
 
+Por solicitação do responsável pelo projeto, o painel e a distribuição de um protótipo foram antecipados. Essa entrega permite baixar, instalar e organizar um plano de duas estações; não encerra M1–M6 nem substitui a prova do motor e do isolamento de aplicativos externos.
+
 | Marco | Entrega | Gate |
 |---|---|---|
 | M0 | Laboratório e base | build e diagnóstico repetíveis |

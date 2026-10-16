@@ -1,10 +1,11 @@
 [CmdletBinding()]
 param(
-    [string]$RepositoryRoot = (Join-Path $PSScriptRoot '..'),
+    [string]$RepositoryRoot,
     [switch]$History
 )
 
 $ErrorActionPreference = 'Stop'
+if (-not $RepositoryRoot) { $RepositoryRoot = Join-Path $PSScriptRoot '..' }
 $root = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 $gitArgs = @('-c', ('safe.directory=' + $root), '-c', 'core.quotepath=false', '-C', $root)
 function Invoke-ReviewGit([string[]]$Arguments) {

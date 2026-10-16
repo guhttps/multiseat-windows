@@ -12,12 +12,14 @@ Produto multiseat nativo para Windows, com experiência de configuração compar
 - Correções de Raw Input, conexão/cleanup do experimento C#, validação do pacote e códigos de saída.
 - CMake/CTest integrados, verificações de privacidade e segredos em CI.
 - Compilação Release e nove testes locais aprovados; Windows build e Public content safety também aprovados no GitHub. Mudanças posteriores continuam exigindo CI.
+- Painel Windows para planejar duas estações e distribuição experimental por instalador/ZIP em implementação. Antes de publicar uma versão, validar os arquivos efetivamente empacotados e os downloads; a existência do painel não aprova um motor multiseat.
 
 ## Retomar sem repetir trabalho
 
 1. Leia STATUS.md e verifique a branch principal, o diff local e os workflows Windows build e Public content safety no GitHub.
 2. Preserve relatórios locais e a base privada anterior. Não faça merge do histórico antigo na base pública; ele contém um caminho de perfil pessoal em versões antigas.
 3. Se os testes falharem, corrija a falha e execute somente as verificações afetadas, seguidas das verificações obrigatórias.
+   Para distribuir o painel, compile em um runner limpo do GitHub, confira manifesto, hashes e conteúdo do instalador/ZIP, e execute os testes de instalação/desinstalação em pasta isolada. Nunca empacote a pasta de trabalho inteira ou resultados de laboratório.
 4. Siga o ADR 0007: investigar o ponto de integração que cria dois terminais utilizáveis por contas distintas e apresenta cada um no seu monitor físico. Uma nova enumeração de periféricos ou outro painel próprio não satisfaz essa prova.
 5. Antes de introduzir serviço/driver, documente o mecanismo, a fronteira de privilégio, autenticação, display/input, recuperação e ambiente de teste. Não usar o PC pessoal como primeiro alvo de um driver experimental.
 6. Só depois da prova com aplicativos comuns, validar áudio e duas instâncias do jogo com os critérios P01–P08. Não marcar o produto como concluído enquanto esses critérios estiverem pendentes.
