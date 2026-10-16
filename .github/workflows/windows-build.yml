@@ -1,0 +1,33 @@
+name: Windows build
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Configure
+        run: cmake -S . -B build -A x64
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Validate diagnostic scripts and helpers
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($file in Get-ChildItem scripts -Filter '*.ps1') {
+            $tokens = $null
+            $errors = $null
+            [Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { throw ($file.Name + ': ' + ($errors -join '; ')) }
+          }
+          Add-Type -Path scripts/RpcTraceFilter.cs
+          Add-Type -Path scripts/RpcStackSymbols.cs
+          Add-Type -Path scripts/ComSecurityDiagnostics.cs
+      - name: Run read-only, synthetic and window smoke checks
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Validate comparison launcher with inert fixtures
+        shell: powershell
+        run: ./scripts/Test-ComparisonSafety.ps1

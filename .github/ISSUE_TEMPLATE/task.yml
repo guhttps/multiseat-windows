@@ -1,0 +1,24 @@
+name: Tarefa de engenharia
+description: Entrega com dependências e critério de conclusão
+title: "[Txxx] "
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objetivo e dependências
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: O que estudar e implementar
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Como testar e critério de conclusão
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidência, ambiente e limitações

@@ -1,0 +1,12 @@
+# Ficha do laboratório
+- Data:
+- Windows (edição/build):
+- CPU/GPU/RAM:
+- Monitores e conexões:
+- Teclados/mouses/headsets (quantidades/modelos, sem serial):
+- Visual Studio/MSVC/SDK/CMake:
+- Contexto: console local / RDP / VM / CI:
+- Comandos e saída do diagnóstico:
+- Código de saída:
+- Limitações encontradas:
+- Dois usuários simultâneos demonstrados? Não nesta etapa.
