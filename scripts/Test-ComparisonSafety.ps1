@@ -117,3 +117,6 @@ $previousOutput = Invoke-GuestCommandFixture -Directory $valid -CommandIndex 2 -
 if (($previousOutput -join "`n") -notmatch 'previous attempt fixture') { throw 'Previous result was not displayed.' }
 Write-Output 'PASS: previous result displayed without running a kit executable.'
 Write-Output ('Fixture reports remain local: ' + $fixtureRoot)
+# Expected nonzero fixture exits must not become the test runner's process exit.
+# An assertion throws before reaching this success return.
+exit 0
