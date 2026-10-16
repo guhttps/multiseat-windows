@@ -1,0 +1,96 @@
+name: CodeQL security analysis
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '21 6 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    # Dependabot push tokens cannot upload SARIF; its pull_request is fully analyzed.
+    if: github.event_name != 'push' || github.actor != 'dependabot[bot]'
+    # The supported VS 2022 compiler and Windows SDK are preinstalled here.
+    runs-on: windows-2022
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [c-cpp, csharp]
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: Require an ephemeral GitHub-hosted runner
+        run: |
+          if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted') {
+            throw 'CodeQL analysis is restricted to GitHub-hosted runners.'
+          }
+
+      - name: Check out public source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: manual
+          queries: security-extended
+          dependency-caching: false
+          trap-caching: false
+          debug: false
+
+      - name: Build every CMake target for extraction
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S . -B build/codeql -G 'Visual Studio 17 2022' -A x64 -DBUILD_TESTING=ON -DMULTISEAT_BUILD_CHILD_SESSION_HOST=ON
+          if ($LASTEXITCODE -ne 0) { throw 'CodeQL CMake configure failed.' }
+          cmake --build build/codeql --config Release --clean-first
+          if ($LASTEXITCODE -ne 0) { throw 'CodeQL CMake build failed.' }
+
+      - name: Compile C# script helpers for extraction
+        if: matrix.language == 'csharp'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+          if (-not (Test-Path -LiteralPath $compiler -PathType Leaf)) {
+            throw '.NET Framework C# compiler is unavailable.'
+          }
+          $outputDirectory = Join-Path $PWD 'build/codeql/helper-libraries'
+          New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
+          $sources = @(Get-ChildItem -LiteralPath scripts -Filter '*.cs' -File -Recurse | Sort-Object FullName)
+          if ($sources.Count -eq 0) { throw 'No C# diagnostic helpers found.' }
+          $index = 0
+          foreach ($source in $sources) {
+            $outputFile = Join-Path $outputDirectory ('helper-' + $index + '.dll')
+            cmake -E env --unset=LIB $compiler /nologo /target:library /platform:x64 /warn:4 /warnaserror+ /debug- /optimize+ /codepage:65001 "/out:$outputFile" $source.FullName
+            if ($LASTEXITCODE -ne 0) { throw 'CodeQL helper compilation failed.' }
+            $index++
+          }
+
+      # Only SARIF from this fresh hosted runner is sent to GitHub Code Scanning.
+      # A completed scan or zero alerts does not establish that the product is safe.
+      - name: Analyze and submit security findings
+        uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          category: /language:${{ matrix.language }}
+          output: ${{ runner.temp }}/codeql-results-${{ matrix.language }}
+          checkout_path: ${{ github.workspace }}
+          upload-database: false
+          wait-for-processing: true

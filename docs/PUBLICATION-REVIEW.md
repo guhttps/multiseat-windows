@@ -22,8 +22,16 @@ Os workflows [Windows build](https://github.com/guhttps/multiseat-windows/action
 
 ## Proteções e limites
 
-Secret scanning, push protection, alertas de vulnerabilidades e relatos privados de vulnerabilidades foram habilitados no GitHub. Workflows recebem permissões de leitura, não persistem credenciais no checkout e usam ação oficial fixada por SHA. Contribuições externas precisam de autorização do mantenedor para executar workflows.
+Secret scanning, push protection, alertas de vulnerabilidades e relatos privados de vulnerabilidades foram habilitados no GitHub. Workflows recebem permissões de leitura por padrão, não persistem credenciais no checkout e usam ações oficiais fixadas por SHA. Permissões adicionais são limitadas aos jobs que enviam resultados CodeQL e preparam um rascunho de release após a validação. Contribuições externas precisam de autorização do mantenedor para executar workflows.
 
 Essas medidas não oferecem garantia absoluta contra dados sensíveis ou falhas futuras. Não importar histórico, branches ou arquivos do arquivo privado para a base pública. Revise manualmente evidências antes de anexá-las, mesmo quando o scanner não encontrar nada.
 
-A licença ainda não foi escolhida. Esta publicação não afirma equivalência funcional com ASTER: isolamento externo, duas contas Windows, áudio por estação, instalação e jogos continuam dependentes do [gate do motor](architecture/0007-native-engine-gate.md).
+A licença ainda não foi escolhida. Esta publicação não afirma equivalência funcional com ASTER: isolamento externo, duas contas Windows, áudio por estação, instalação do motor e jogos continuam dependentes do [gate do motor](architecture/0007-native-engine-gate.md).
+
+## Distribuição e verificações posteriores
+
+A versão [v0.1.0-experimental.1](https://github.com/guhttps/multiseat-windows/releases/tag/v0.1.0-experimental.1) publicou somente o painel e as ferramentas permitidas, após build limpo, testes de instalação/desinstalação, revisão independente e verificação dos quatro downloads anônimos por SHA-256. Isso não publica os pacotes e resultados privados do laboratório anterior. O roteiro de uso está em [DOWNLOAD-INSTALL.md](DOWNLOAD-INSTALL.md).
+
+A revisão dos próximos commits inclui a [política de autoria dos mantenedores](../.github/publication-policy.json). Ela protege também o nome do autor e do committer quando o e-mail já é `noreply`; usar e-mail privado não anonimiza automaticamente os outros campos de autoria. As regras de conteúdo e segredos continuam sendo necessárias.
+
+O workflow CodeQL cobre os alvos C++/C# e os helpers C# do repositório usando build manual em runner temporário. Sua análise complementa os testes e scanners de segredos. O Dependabot propõe atualizações semanais das ações fixadas, sem merge automático. A revisão de versões e hashes dos downloads manuais continua necessária.

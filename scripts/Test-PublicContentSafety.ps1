@@ -74,18 +74,29 @@ function Invoke-FixtureGit {
 }
 
 function Save-FixtureCommit {
-    param([string]$Directory, [string]$Message, [string]$Email = 'fixture@public-policy.invalid')
-    $previousAuthor = [Environment]::GetEnvironmentVariable('GIT_AUTHOR_EMAIL', 'Process')
-    $previousCommitter = [Environment]::GetEnvironmentVariable('GIT_COMMITTER_EMAIL', 'Process')
+    param(
+        [string]$Directory,
+        [string]$Message,
+        [string]$Email = 'fixture@public-policy.invalid',
+        [string]$AuthorName = 'Public Policy Fixture',
+        [string]$CommitterName = 'Public Policy Fixture',
+        [string]$AuthorEmail,
+        [string]$CommitterEmail
+    )
+    if (-not $AuthorEmail) { $AuthorEmail = $Email }
+    if (-not $CommitterEmail) { $CommitterEmail = $Email }
+    $identityValues = @{ GIT_AUTHOR_NAME = $AuthorName; GIT_AUTHOR_EMAIL = $AuthorEmail;
+        GIT_COMMITTER_NAME = $CommitterName; GIT_COMMITTER_EMAIL = $CommitterEmail }
+    $previousIdentity = @{}
+    foreach ($name in $identityValues.Keys) { $previousIdentity[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
     try {
-        [Environment]::SetEnvironmentVariable('GIT_AUTHOR_EMAIL', $Email, 'Process')
-        [Environment]::SetEnvironmentVariable('GIT_COMMITTER_EMAIL', $Email, 'Process')
+        foreach ($name in $identityValues.Keys) { [Environment]::SetEnvironmentVariable($name, $identityValues[$name], 'Process') }
         Invoke-FixtureGit -Directory $Directory -Arguments @('commit', '--quiet', '-m', $Message) | Out-Null
     } finally {
-        if ($null -eq $previousAuthor) { Remove-Item -LiteralPath 'Env:GIT_AUTHOR_EMAIL' -ErrorAction SilentlyContinue }
-        else { Set-Item -LiteralPath 'Env:GIT_AUTHOR_EMAIL' -Value $previousAuthor }
-        if ($null -eq $previousCommitter) { Remove-Item -LiteralPath 'Env:GIT_COMMITTER_EMAIL' -ErrorAction SilentlyContinue }
-        else { Set-Item -LiteralPath 'Env:GIT_COMMITTER_EMAIL' -Value $previousCommitter }
+        foreach ($name in $identityValues.Keys) {
+            if ($null -eq $previousIdentity[$name]) { Remove-Item -LiteralPath ('Env:' + $name) -ErrorAction SilentlyContinue }
+            else { Set-Item -LiteralPath ('Env:' + $name) -Value $previousIdentity[$name] }
+        }
     }
 }
 
@@ -110,8 +121,9 @@ function New-PublicFixture {
 }
 
 function Assert-PublicPolicy {
-    param([string]$Directory, [string]$Category, [string]$ExpectedFinding, [switch]$History)
-    $arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', $guardPath, '-RepositoryRoot', $Directory)
+    param([string]$Directory, [string]$Category, [string]$ExpectedFinding, [switch]$History,
+        [string]$GuardScript = $guardPath, [string[]]$ForbiddenOutputValues = @())
+    $arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', $GuardScript, '-RepositoryRoot', $Directory)
     if ($History) { $arguments += '-History' }
     $previousPreference = $ErrorActionPreference
     try {
@@ -121,6 +133,9 @@ function Assert-PublicPolicy {
     } finally { $ErrorActionPreference = $previousPreference }
     $output | Out-File -LiteralPath (Join-Path $reportRoot ($Category + '.log')) -Encoding utf8
     $combined = $output -join "`n"
+    foreach ($value in $ForbiddenOutputValues) {
+        if ($value -and $combined.Contains($value)) { throw ('Public policy exposed fixture identity values; category: ' + $Category) }
+    }
     if ($ExpectedFinding) {
         if ($nativeExit -eq 0) { throw ('Public policy accepted prohibited fixture category: ' + $Category) }
         if ($combined -notmatch [regex]::Escape($ExpectedFinding)) {
@@ -191,6 +206,80 @@ try {
     Save-FixtureCommit -Directory $metadata -Message 'Fictitious private metadata' -Email $privateEmail
     Assert-PublicPolicy -Directory $metadata -Category 'safe-source-with-private-metadata'
     Assert-PublicPolicy -Directory $metadata -Category 'historical-private-metadata' -History -ExpectedFinding 'email_requires_review: commit/'
+
+    # Only identities associated with the maintained public GitHub handle use
+    # this alias list; contributors with unrelated noreply identities are not renamed.
+    $maintainerEmail = 'guhttps@users.noreply.github.com'
+    $idMaintainerEmail = '123456+guhttps@users.noreply.github.com'
+    $unapprovedName = 'Unapproved Fictitious Identity'
+    foreach ($identity in @(
+        @{ category = 'approved-project-alias'; name = 'Multiseat Windows'; email = $maintainerEmail },
+        @{ category = 'approved-handle-alias-with-id'; name = 'guhttps'; email = $idMaintainerEmail },
+        @{ category = 'unrelated-noreply-contributor'; name = $unapprovedName; email = 'policy-outsider@users.noreply.github.com' }
+    )) {
+        $directory = New-PublicFixture -Name $identity.category
+        [IO.File]::WriteAllText((Join-Path $directory 'normal.md'), 'Ordinary public source.', $utf8)
+        Invoke-FixtureGit -Directory $directory -Arguments @('add', '--', 'normal.md') | Out-Null
+        Save-FixtureCommit -Directory $directory -Message 'Public identity fixture' -Email $identity.email -AuthorName $identity.name -CommitterName $identity.name
+        Assert-PublicPolicy -Directory $directory -Category $identity.category -History
+    }
+
+    $authorIdentity = New-PublicFixture -Name 'maintainer-author-history'
+    [IO.File]::WriteAllText((Join-Path $authorIdentity 'removed.md'), 'Inert file removed in the following revision.', $utf8)
+    Invoke-FixtureGit -Directory $authorIdentity -Arguments @('add', '--', 'removed.md') | Out-Null
+    Save-FixtureCommit -Directory $authorIdentity -Message 'Fictitious author identity' -AuthorEmail $maintainerEmail -AuthorName $unapprovedName -CommitterEmail $maintainerEmail -CommitterName 'Multiseat Windows'
+    $unapprovedAuthorCommit = Invoke-FixtureGit -Directory $authorIdentity -Arguments @('rev-parse', 'HEAD')
+    Invoke-FixtureGit -Directory $authorIdentity -Arguments @('rm', '--quiet', '--', 'removed.md') | Out-Null
+    Save-FixtureCommit -Directory $authorIdentity -Message 'Current revision uses approved identities' -Email $maintainerEmail -AuthorName 'Multiseat Windows' -CommitterName 'guhttps'
+    Assert-PublicPolicy -Directory $authorIdentity -Category 'clean-current-tree-after-unapproved-author'
+    Assert-PublicPolicy -Directory $authorIdentity -Category 'unapproved-author-in-ancestor' -History -ExpectedFinding ('maintainer_author_name_requires_review: commit/' + $unapprovedAuthorCommit) -ForbiddenOutputValues @($unapprovedName, $maintainerEmail)
+
+    $committerIdentity = New-PublicFixture -Name 'maintainer-committer'
+    [IO.File]::WriteAllText((Join-Path $committerIdentity 'normal.md'), 'Ordinary public source.', $utf8)
+    Invoke-FixtureGit -Directory $committerIdentity -Arguments @('add', '--', 'normal.md') | Out-Null
+    Save-FixtureCommit -Directory $committerIdentity -Message 'Fictitious committer identity' -AuthorEmail $maintainerEmail -AuthorName 'Multiseat Windows' -CommitterEmail $idMaintainerEmail -CommitterName $unapprovedName
+    $unapprovedCommitterCommit = Invoke-FixtureGit -Directory $committerIdentity -Arguments @('rev-parse', 'HEAD')
+    Assert-PublicPolicy -Directory $committerIdentity -Category 'unapproved-committer-with-noreply-id' -History -ExpectedFinding ('maintainer_committer_name_requires_review: commit/' + $unapprovedCommitterCommit) -ForbiddenOutputValues @($unapprovedName, $idMaintainerEmail)
+
+    foreach ($automationName in @('GitHub', $unapprovedName)) {
+        $category = if ($automationName -eq 'GitHub') { 'approved-github-committer' } else { 'unapproved-github-committer' }
+        $directory = New-PublicFixture -Name $category
+        [IO.File]::WriteAllText((Join-Path $directory 'normal.md'), 'Ordinary public source.', $utf8)
+        Invoke-FixtureGit -Directory $directory -Arguments @('add', '--', 'normal.md') | Out-Null
+        Save-FixtureCommit -Directory $directory -Message 'Automation identity fixture' -AuthorEmail $maintainerEmail -AuthorName 'Multiseat Windows' -CommitterEmail 'noreply@github.com' -CommitterName $automationName
+        $finding = if ($automationName -eq 'GitHub') { $null } else { 'automation_committer_name_requires_review: commit/' }
+        Assert-PublicPolicy -Directory $directory -Category $category -History -ExpectedFinding $finding -ForbiddenOutputValues @($unapprovedName)
+    }
+
+    $trustedPolicyPath = Join-Path $projectRoot '.github/publication-policy.json'
+    $trustedPolicyText = [IO.File]::ReadAllText($trustedPolicyPath)
+    $targetPolicy = New-PublicFixture -Name 'target-policy-cannot-weaken-trusted-tool'
+    New-Item -ItemType Directory -Path (Join-Path $targetPolicy '.github') | Out-Null
+    $weakened = $trustedPolicyText | ConvertFrom-Json
+    $weakened.maintainers[0].approved_names += $unapprovedName
+    [IO.File]::WriteAllText((Join-Path $targetPolicy '.github/publication-policy.json'), ($weakened | ConvertTo-Json -Depth 8), $utf8)
+    Invoke-FixtureGit -Directory $targetPolicy -Arguments @('add', '--all') | Out-Null
+    Save-FixtureCommit -Directory $targetPolicy -Message 'Target policy is untrusted input' -Email $maintainerEmail -AuthorName $unapprovedName -CommitterName $unapprovedName
+    Assert-PublicPolicy -Directory $targetPolicy -Category 'target-policy-cannot-weaken-trusted-tool' -History -ExpectedFinding 'maintainer_author_name_requires_review: commit/' -ForbiddenOutputValues @($unapprovedName, $maintainerEmail)
+
+    foreach ($invalidKind in @('unknown-property', 'wrong-version-type', 'duplicate-property')) {
+        $tool = Join-Path $fixtureRoot ('invalid-policy-tool-' + $invalidKind)
+        New-Item -ItemType Directory -Path (Join-Path $tool 'scripts'), (Join-Path $tool '.github') -Force | Out-Null
+        $copiedGuard = Join-Path $tool 'scripts/Test-PublicContent.ps1'
+        Copy-Item -LiteralPath $guardPath -Destination $copiedGuard
+        $invalid = $trustedPolicyText | ConvertFrom-Json
+        if ($invalidKind -eq 'unknown-property') {
+            $invalid | Add-Member -NotePropertyName unexpected -NotePropertyValue $true
+            $invalidText = $invalid | ConvertTo-Json -Depth 8
+        } elseif ($invalidKind -eq 'wrong-version-type') {
+            $invalid.schema_version = '1'
+            $invalidText = $invalid | ConvertTo-Json -Depth 8
+        } else {
+            $invalidText = $trustedPolicyText -replace '"schema_version"\s*:\s*1', '"schema_version": 1, "schema_version": 1'
+        }
+        [IO.File]::WriteAllText((Join-Path $tool '.github/publication-policy.json'), $invalidText, $utf8)
+        Assert-PublicPolicy -Directory $legitimate -Category ('invalid-policy-' + $invalidKind) -GuardScript $copiedGuard -ExpectedFinding 'Invalid trusted publication policy;'
+    }
 } finally {
     foreach ($name in $gitEnvironmentNames) {
         if ($null -eq $previousGitEnvironment[$name]) {

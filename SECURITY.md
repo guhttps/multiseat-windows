@@ -14,6 +14,22 @@ Os relatórios são gravados em `docs/lab/results/` e os binários em `build/`, 
 
 A política de publicação bloqueia artefatos de laboratório, caminhos de perfis pessoais, credenciais e formatos comuns de segredos. A inspeção automatizada complementa a revisão humana; nenhum scanner oferece garantia absoluta de ausência de dados sensíveis.
 
+## Atualizar o GitHub
+
+Revise o diff e envie somente os arquivos da mudança. Antes do push, execute `scripts/Test-PublicContent.ps1 -History` e a varredura de segredos; os workflows repetem essas verificações. Relatórios dessa revisão permanecem locais. Uma configuração salva pelo painel também é um dado do equipamento e não deve ser anexada ao repositório.
+
+A [política de autoria pública](.github/publication-policy.json) define os identificadores públicos dos mantenedores e os nomes aprovados para seus commits. A verificação do histórico confere autor e committer separadamente, inclusive quando o e-mail é GitHub `noreply`. Ela relata a regra e o commit, sem imprimir o nome ou e-mail recusado. Mudanças de mantenedores e nomes públicos exigem revisar essa política.
+
+Use a identidade pública do projeto e o e-mail privado fornecido pelo GitHub. Configurações locais do Git não controlam os metadados de commits criados pelo site: merges e outras integrações também precisam de revisão. Um e-mail `noreply` sozinho não impede a publicação de um nome pessoal.
+
+O GitHub também pode usar o nome da conta no commit temporário gerado ao abrir um PR. Considere esses metadados antes de iniciar uma integração pública; a revisão do commit local não controla essa geração no servidor.
+
+Mantenha as verificações obrigatórias, secret scanning, push protection e a proteção da branch principal. Distribuições devem sair do workflow de release a partir de um commit revisado, com a lista permitida de arquivos, manifesto e hashes conferidos. O rascunho só deve ser publicado após revisar os artefatos; não substitua arquivos ou tags de uma versão já publicada.
+
+O workflow CodeQL analisa C++ e C# em um runner temporário do GitHub, nos pushes, PRs e semanalmente. Ele envia somente os resultados de análise para Code Scanning, sem publicar bancos ou relatórios do computador pessoal. O resultado deve ser revisado na aba **Security**; zero alertas não prova ausência de vulnerabilidades.
+
+O Dependabot propõe semanalmente atualizações das ações do GitHub fixadas por commit. Essas atualizações precisam passar pelos checks e pela revisão antes da integração; não há merge automático. As ferramentas baixadas manualmente, como Gitleaks e Inno Setup, continuam exigindo revisão de versão, procedência e checksums.
+
 ## Relatar uma vulnerabilidade
 
 Use a opção privada **Security → Report a vulnerability** quando estiver habilitada no GitHub. Não publique uma credencial ou informação pessoal para demonstrar o problema. Se a opção privada não estiver disponível, abra uma Issue pedindo um canal privado sem incluir o conteúdo sensível.

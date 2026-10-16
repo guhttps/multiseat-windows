@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "maintainers": [
+    {
+      "handle": "guhttps",
+      "approved_names": ["Multiseat Windows", "guhttps"]
+    }
+  ],
+  "automation_committers": [
+    {
+      "email": "noreply@github.com",
+      "approved_names": ["GitHub"]
+    }
+  ]
+}

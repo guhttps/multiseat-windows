@@ -11,6 +11,8 @@ Produto multiseat nativo para Windows, com experiência de configuração compar
 - Repositório público saneado publicado, preservando histórico e resultados anteriores como privados.
 - Correções de Raw Input, conexão/cleanup do experimento C#, validação do pacote e códigos de saída.
 - CMake/CTest integrados, verificações de privacidade e segredos em CI.
+- Política de autoria pública: o guard do histórico valida nomes de autor e committer dos mantenedores mesmo com e-mail noreply. A configuração local usa a identidade pública do projeto; merges gerados pelo GitHub exigem revisar os metadados produzidos pelo servidor. Veja [SECURITY.md](../SECURITY.md).
+- CodeQL configurado para C++/C# com build manual em runner temporário e análise semanal. Dependabot propõe atualizações das ações fixadas; nenhuma atualização é integrada automaticamente. Ferramentas de download manual ainda exigem revisão de versões e hashes.
 - Compilação Release e onze testes locais aprovados, incluindo o painel; o pacote sem o host de sessão filha usa nove testes. A base pública passou Windows build e Public content safety no GitHub. Mudanças posteriores continuam exigindo CI.
 - Painel Windows para planejar duas estações publicado em [v0.1.0-experimental.1](https://github.com/guhttps/multiseat-windows/releases/tag/v0.1.0-experimental.1), com instalador por usuário e ZIP. Compilação limpa, instalação/desinstalação, hashes e downloads anônimos verificados. Painel instalado no ambiente alvo e inicialização validada. Isso não aprova um motor multiseat.
 

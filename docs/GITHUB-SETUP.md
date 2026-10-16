@@ -10,12 +10,18 @@ Não importar bundles, branches antigas, relatórios privados ou o histórico do
 
 Antes de publicar ou anexar um arquivo:
 
-1. Execute `scripts/Test-PublicContent.ps1` e a varredura de segredos.
+1. Execute `scripts/Test-PublicContent.ps1 -History` e a varredura de segredos.
 2. Revise o diff, os nomes dos arquivos, a autoria e o conteúdo das Issues.
 3. Confirme que os workflows passaram e que nenhum artefato privado será incluído.
 4. Mantenha os resultados brutos em `docs/lab/results/`, ignorado pelo Git.
 
 Referências: [visibilidade e logs do Actions](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility), [limites da remoção de histórico sensível](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository).
+
+## Autoria dos próximos commits
+
+Use o nome público do projeto e o e-mail `noreply` fornecido pelo GitHub. A [política de publicação](../.github/publication-policy.json) mantém os identificadores públicos dos mantenedores e seus nomes aprovados. A checagem com `-History` valida autor e committer de cada commit e não imprime metadados recusados.
+
+As configurações locais do Git não se aplicam automaticamente aos commits gerados pelo GitHub. Revise também a autoria de merges e integrações; não suponha que escolher um e-mail privado oculta o nome da conta. Atualize a política ao mudar os mantenedores ou seus nomes públicos.
 
 ## Trabalho e marcos
 
