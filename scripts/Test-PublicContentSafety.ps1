@@ -48,7 +48,27 @@ function Invoke-FixtureGit {
     } finally { $ErrorActionPreference = $previousPreference }
     if ($nativeExit -ne 0) {
         $output | Out-File -LiteralPath (Join-Path $reportRoot 'git-failure.log') -Encoding utf8
-        throw 'Fixture Git operation failed; captured output remains in ignored build storage.'
+        # Never publish stderr, argument values, filenames or environment data.
+        # Fixed diagnostic categories are enough to investigate runner failures.
+        $failureClass = 'native-git-failure'
+        $captured = $output -join "`n"
+        if ($captured -match 'GIT_CONFIG_COUNT|GIT_CONFIG_PARAMETERS|GIT_DIR|GIT_WORK_TREE|bogus count') {
+            $failureClass = 'invalid-git-environment'
+        } elseif ($captured -match 'dubious ownership') {
+            $failureClass = 'repository-ownership'
+        } elseif ($captured -match 'identity unknown|auto-detect email|empty ident|invalid date') {
+            $failureClass = 'commit-identity'
+        } elseif ($captured -match 'permission denied|access is denied') {
+            $failureClass = 'filesystem-permission'
+        } elseif ($captured -match 'cannot chdir|no such file or directory') {
+            $failureClass = 'filesystem-location'
+        } elseif ($captured -match 'unknown option|usage: git') {
+            $failureClass = 'native-arguments'
+        }
+        $operation = if ($Arguments[0] -in @('init', 'add', 'commit', 'remote', 'rev-parse', 'rm')) {
+            $Arguments[0]
+        } else { 'unknown' }
+        throw ('Fixture Git operation failed: operation=' + $operation + '; exit=' + $nativeExit + '; class=' + $failureClass + '.')
     }
     return ($output -join "`n")
 }
@@ -62,8 +82,10 @@ function Save-FixtureCommit {
         [Environment]::SetEnvironmentVariable('GIT_COMMITTER_EMAIL', $Email, 'Process')
         Invoke-FixtureGit -Directory $Directory -Arguments @('commit', '--quiet', '-m', $Message) | Out-Null
     } finally {
-        [Environment]::SetEnvironmentVariable('GIT_AUTHOR_EMAIL', $previousAuthor, 'Process')
-        [Environment]::SetEnvironmentVariable('GIT_COMMITTER_EMAIL', $previousCommitter, 'Process')
+        if ($null -eq $previousAuthor) { Remove-Item -LiteralPath 'Env:GIT_AUTHOR_EMAIL' -ErrorAction SilentlyContinue }
+        else { Set-Item -LiteralPath 'Env:GIT_AUTHOR_EMAIL' -Value $previousAuthor }
+        if ($null -eq $previousCommitter) { Remove-Item -LiteralPath 'Env:GIT_COMMITTER_EMAIL' -ErrorAction SilentlyContinue }
+        else { Set-Item -LiteralPath 'Env:GIT_COMMITTER_EMAIL' -Value $previousCommitter }
     }
 }
 
@@ -111,7 +133,9 @@ function Assert-PublicPolicy {
 }
 
 try {
-    foreach ($name in $gitEnvironmentNames) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
+    # Explicit removal is required: modern PowerShell/.NET can coerce a null
+    # SetEnvironmentVariable value to an empty variable, which Git still reads.
+    foreach ($name in $gitEnvironmentNames) { Remove-Item -LiteralPath ('Env:' + $name) -ErrorAction SilentlyContinue }
     [Environment]::SetEnvironmentVariable('GIT_CONFIG_GLOBAL', $emptyGitConfig, 'Process')
     [Environment]::SetEnvironmentVariable('GIT_CONFIG_NOSYSTEM', '1', 'Process')
     [Environment]::SetEnvironmentVariable('GIT_AUTHOR_NAME', 'Public Policy Fixture', 'Process')
@@ -169,7 +193,11 @@ try {
     Assert-PublicPolicy -Directory $metadata -Category 'historical-private-metadata' -History -ExpectedFinding 'email_requires_review: commit/'
 } finally {
     foreach ($name in $gitEnvironmentNames) {
-        [Environment]::SetEnvironmentVariable($name, $previousGitEnvironment[$name], 'Process')
+        if ($null -eq $previousGitEnvironment[$name]) {
+            Remove-Item -LiteralPath ('Env:' + $name) -ErrorAction SilentlyContinue
+        } else {
+            Set-Item -LiteralPath ('Env:' + $name) -Value $previousGitEnvironment[$name]
+        }
     }
 }
 
