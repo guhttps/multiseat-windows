@@ -1,6 +1,6 @@
 # Organização do GitHub
 
-Endereço do projeto: [guhttps/multiseat-windows](https://github.com/guhttps/multiseat-windows). A branch principal é `main`. A publicação pública está condicionada à revisão de privacidade e às verificações de código; o estado confirmado fica em [STATUS.md](STATUS.md).
+Endereço público do projeto: [guhttps/multiseat-windows](https://github.com/guhttps/multiseat-windows). A branch principal é `main`. A publicação foi confirmada em 2026-10-16 após revisão de privacidade e verificações de código; o estado confirmado fica em [STATUS.md](STATUS.md).
 
 ## Publicação segura
 

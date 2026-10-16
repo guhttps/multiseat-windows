@@ -8,10 +8,10 @@ Produto multiseat nativo para Windows, com experiência de configuração compar
 
 ## Entrega em andamento
 
-- Preparação de repositório público saneado, preservando histórico e resultados anteriores como privados.
+- Repositório público saneado publicado, preservando histórico e resultados anteriores como privados.
 - Correções de Raw Input, conexão/cleanup do experimento C#, validação do pacote e códigos de saída.
 - CMake/CTest integrados, verificações de privacidade e segredos em CI.
-- Compilação Release e nove testes locais aprovados; verificar também o CI da cópia pública antes de anunciar a publicação concluída.
+- Compilação Release e nove testes locais aprovados; Windows build e Public content safety também aprovados no GitHub. Mudanças posteriores continuam exigindo CI.
 
 ## Retomar sem repetir trabalho
 

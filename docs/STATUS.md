@@ -19,7 +19,7 @@ Essas verificações não criam duas estações e não demonstram compatibilidad
 
 A preparação da edição pública revisou o conteúdo, os 33 commits privados, nomes de arquivos, autoria e inventário remoto. Uma varredura Gitleaks adicional não encontrou segredos no histórico privado. Um caminho pessoal foi removido do conteúdo atual; detalhes do computador foram generalizados. A publicação usa uma base nova e revisada, preservando o repositório anterior como arquivo privado, para não expor versões antigas ou logs do Actions.
 
-Resultados brutos, pacotes, mídias e discos de VM permanecem fora do Git. Há política de publicação, varredura de segredos, ações fixadas em commits e permissões mínimas nos workflows. Estado da nova publicação e do CI ainda em verificação. Nenhuma ferramenta fornece garantia absoluta de ausência de informações sensíveis; veja [SECURITY.md](../SECURITY.md).
+Resultados brutos, pacotes, mídias e discos de VM permanecem fora do Git. Publicação pública confirmada, inclusive sem autenticação; commit privado antigo recusado no novo repositório. Os workflows [Windows build](https://github.com/guhttps/multiseat-windows/actions/runs/38876490262) e [Public content safety](https://github.com/guhttps/multiseat-windows/actions/runs/38876490300) passaram no código publicado. Secret scanning, push protection e relatos privados de vulnerabilidades habilitados. Há política de publicação, ações fixadas em commits e permissões mínimas nos workflows. Nenhuma ferramenta fornece garantia absoluta de ausência de informações sensíveis; veja [revisão de publicação](PUBLICATION-REVIEW.md) e [SECURITY.md](../SECURITY.md).
 
 ## O que impede o produto completo
 

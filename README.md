@@ -43,6 +43,6 @@ Não envie senhas, tokens, nomes de usuário, caminhos pessoais, relatórios bru
 
 ## Distribuição
 
-O código está sendo preparado para consulta pública. A licença de distribuição e a política de contribuições externas continuam pendentes; publicar o repositório não define uma licença automaticamente. Veja [CONTRIBUTING.md](CONTRIBUTING.md).
+O código está disponível para consulta pública. A licença de distribuição e a política de contribuições externas continuam pendentes; publicar o repositório não define uma licença automaticamente. Veja [CONTRIBUTING.md](CONTRIBUTING.md) e a [revisão de publicação](docs/PUBLICATION-REVIEW.md).
 
 ASTER e League of Legends são referências de produto e compatibilidade; este projeto não é afiliado a seus fabricantes. Compatibilidade com Windows, drivers, jogos e mecanismos antitrapaça exige validação própria. O projeto não fornece patches de componentes do Windows ou formas de contornar o Vanguard.
