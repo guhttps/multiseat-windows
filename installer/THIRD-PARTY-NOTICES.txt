@@ -1,0 +1,12 @@
+The installer is built with unmodified Inno Setup 6.7.3.
+Copyright (C) 1997-2026 Jordan Russell. All rights reserved.
+Portions Copyright (C) 2000-2026 Martijn Laan. All rights reserved.
+https://jrsoftware.org/
+
+Inno Setup license for this pinned version:
+https://raw.githubusercontent.com/jrsoftware/issrc/is-6_7_3/license.txt
+The complete license is included in INNO-SETUP-LICENSE.txt.
+
+The original Inno Setup copyright notices and website addresses in Setup and
+Uninstall remain intact. The compiler is not distributed in this product.
+Inno Setup's license does not determine the license of Multiseat Windows.

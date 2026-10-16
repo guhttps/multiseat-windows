@@ -22,9 +22,9 @@ function Invoke-LabCheck {
     $previousPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        $LASTEXITCODE = $null
+        $global:LASTEXITCODE = $null
         $output = & $Executable @Arguments 2>&1
-        $commandExit = $LASTEXITCODE
+        $commandExit = $global:LASTEXITCODE
     } finally {
         $ErrorActionPreference = $previousPreference
     }

@@ -7,7 +7,7 @@ Atualizado em 2026-10-16. Protótipo de pesquisa: nenhuma segunda estação inde
 - Diagnóstico Win32 de sessão, desktop e monitores, sem alterar configuração.
 - Identificação de dois teclados e dois mouses e roteamento para painéis próprios.
 - Associação, uso simultâneo e recuperação de periféricos nos painéis próprios confirmados em laboratório.
-- Build Release C++ e C# integrado ao CMake; nove verificações seguras via CTest passaram localmente.
+- Build Release C++ e C# integrado ao CMake; onze verificações seguras via CTest passaram localmente, incluindo lógica e inicialização do painel. O pacote sem o experimento C# de sessão filha executa nove dessas verificações.
 - Validação de tamanho/tipo de Raw Input e aposentadoria de IDs de dispositivos removidos.
 - Teste de sessão filha exige observação estável de conexão/login, impede concorrência na mesma sessão e revalida a identidade antes de encerrar a sessão criada pelo teste.
 - Pacote de comparação validado antes da extração; fixtures verificam corrupção, caminhos fora da pasta, duplicatas, arquivos extras, junctions e preservação de resultados anteriores.

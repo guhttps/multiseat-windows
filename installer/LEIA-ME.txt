@@ -1,0 +1,23 @@
+Multiseat Windows Prototype - experimental
+
+Abra MultiseatPrototype.exe para configurar o plano de duas estacoes e iniciar
+a demonstracao com os seus teclados, mouses e monitores.
+
+O prototipo diferencia dispositivos e encaminha eventos dentro de seus proprios
+paineis. Ele ainda nao separa aplicativos externos, contas Windows ou jogos.
+Duas pessoas jogando League of Legends simultaneamente ainda nao foi validado.
+
+Requisitos: Windows 10/11 x64 e .NET Framework 4.x incluido no Windows.
+O instalador funciona por usuario, sem solicitar administrador. A versao ZIP
+funciona sem instalacao: extraia a pasta inteira antes de abrir o aplicativo.
+
+Configuracoes: %LOCALAPPDATA%\MultiseatPrototype\settings.json.
+A desinstalacao remove os arquivos instalados e o atalho; preserva configuracoes.
+O pacote nao inclui servicos, drivers ou os experimentos administrativos do repositorio.
+
+Esta distribuicao experimental ainda nao tem assinatura de codigo. O Windows pode
+mostrar editor desconhecido ou SmartScreen. Confira a origem e o SHA-256 publicados
+no release. A verificacao de hash so e util quando o valor esperado e confiavel.
+
+A licenca do projeto ainda nao foi definida. Este aviso nao concede uma licenca.
+Codigo e atualizacoes: https://github.com/guhttps/multiseat-windows

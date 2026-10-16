@@ -51,9 +51,9 @@ function Invoke-LoggedExperiment {
     $ErrorActionPreference = 'Continue'
     try {
         # A launch failure must not inherit a successful exit code from an earlier process.
-        $LASTEXITCODE = $null
+        $global:LASTEXITCODE = $null
         $output = & $Executable @Arguments 2>&1
-        $code = $LASTEXITCODE
+        $code = $global:LASTEXITCODE
         $output | Out-File -LiteralPath (Join-Path $resultDirectory $Log) -Encoding utf8
         if ($null -eq $code) { throw ('Experiment did not produce an exit code: ' + $Log) }
         return $code

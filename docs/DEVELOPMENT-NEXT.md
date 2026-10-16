@@ -11,7 +11,7 @@ Produto multiseat nativo para Windows, com experiência de configuração compar
 - Repositório público saneado publicado, preservando histórico e resultados anteriores como privados.
 - Correções de Raw Input, conexão/cleanup do experimento C#, validação do pacote e códigos de saída.
 - CMake/CTest integrados, verificações de privacidade e segredos em CI.
-- Compilação Release e nove testes locais aprovados; Windows build e Public content safety também aprovados no GitHub. Mudanças posteriores continuam exigindo CI.
+- Compilação Release e onze testes locais aprovados, incluindo o painel; o pacote sem o host de sessão filha usa nove testes. A base pública passou Windows build e Public content safety no GitHub. Mudanças posteriores continuam exigindo CI.
 - Painel Windows para planejar duas estações e distribuição experimental por instalador/ZIP em implementação. Antes de publicar uma versão, validar os arquivos efetivamente empacotados e os downloads; a existência do painel não aprova um motor multiseat.
 
 ## Retomar sem repetir trabalho

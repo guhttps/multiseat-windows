@@ -1,0 +1,9 @@
+{
+  "inno_setup_version": "6.7.3",
+  "download_url": "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe",
+  "download_sha256": "9C73C3BAE7ED48D44112A0F48E66742C00090BDB5BEF71D9D3C056C66E97B732",
+  "compiler_sha256": "0A8757031B33777E4C9CBFFEE40F11A5062B36D25CBE144C1DB73B6102B80AD7",
+  "compiler_dll_sha256": "85A1E3090D3A5B85319F001B7C8F9ECFAD45F37EFF030A67BBE29EF58B7AA2C3",
+  "authenticode_organization": "Pyrsys B.V.",
+  "license_url": "https://raw.githubusercontent.com/jrsoftware/issrc/is-6_7_3/license.txt"
+}
