@@ -13,6 +13,9 @@ jobs:
       - name: Check public source and reachable history
         shell: pwsh
         run: ./scripts/Test-PublicContent.ps1 -History
+      - name: Test privacy policy with inert repositories
+        shell: pwsh
+        run: ./scripts/Test-PublicContentSafety.ps1
       - name: Scan secrets with checksum-verified Gitleaks
         shell: bash
         env:

@@ -31,3 +31,6 @@ jobs:
       - name: Validate comparison launcher with inert fixtures
         shell: powershell
         run: ./scripts/Test-ComparisonSafety.ps1
+      - name: Validate public-content policy on Windows PowerShell
+        shell: powershell
+        run: ./scripts/Test-PublicContentSafety.ps1

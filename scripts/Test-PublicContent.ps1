@@ -23,13 +23,13 @@ if (-not $paths.Count) { throw 'Could not enumerate repository files.' }
 
 # Print rule names and relative filenames, never the matching sensitive content.
 $rules = [ordered]@{
-    personal_profile = '(?i)[a-z]:[\\/]Users[\\/](?!Public\b|Default\b|<)[^\\/\s''"<>]+'
+    personal_profile = '(?i)[a-z]:[\\/]{1,2}Users[\\/]{1,2}(?!Public\b|Default\b|<)[^\\/\s''"<>]+'
     private_key = '-----BEGIN (?:RSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY-----'
     github_token = '\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})\b'
     aws_access_key = '\b(?:AKIA|ASIA)[0-9A-Z]{16}\b'
     personal_sid = '\bS-1-5-21(?:-\d+){3,4}\b'
 }
-$blockedPath = '(?i)(?:^|/)(?:build|out|artifacts|\.git|\.aws|\.ssh|results)(?:/|$)|(?:^|/)\.env(?:\..+)?$|(?:^|/)(?:id_rsa|id_ed25519)(?:\..*)?$|\.(?:log|etl|dmp|evtx|zip|7z|iso|vhd|vhdx|avhdx|pfx|p12|key|pem|exe|dll|pdb|obj|lib)$|\.local\.'
+$blockedPath = '(?i)(?:^|/)(?:build|out|artifacts|\.git|\.aws|\.ssh|results)(?:/|$)|(?:^|/)\.env(?:\..+)?$|(?:^|/)(?:id_rsa|id_ed25519)(?:\..*)?$|\.(?:log|etl|dmp|evtx|zip|7z|bundle|tar|gz|tgz|bz2|sqlite|sqlite3|db|iso|vhd|vhdx|avhdx|pfx|p12|key|pem|exe|dll|pdb|obj|lib)$|\.local\.'
 $findings = [Collections.Generic.List[string]]::new()
 function Test-Text([string]$Label, [string]$Content) {
     foreach ($rule in $rules.Keys) {

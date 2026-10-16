@@ -22,6 +22,15 @@ artifacts/
 *.evtx
 *.zip
 *.7z
+*.bundle
+*.tar
+*.gz
+*.tgz
+*.bz2
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.db
 *.iso
 *.vhd
 *.vhdx
