@@ -138,6 +138,43 @@ jobs:
             $seen[$name] = $true
             if ((Get-FileHash -LiteralPath (Join-Path $root $name) -Algorithm SHA256).Hash -ne $hash) { throw 'Release artifact hash mismatch.' }
           }
+          $tag = 'v' + $env:RELEASE_VERSION
+          function Get-RemoteReleaseCommit {
+            $directRef = 'refs/tags/' + $tag
+            $peeledRef = $directRef + '^{}'
+            $global:LASTEXITCODE = $null
+            $records = @(git ls-remote --exit-code --tags origin $directRef $peeledRef)
+            $queryExit = $global:LASTEXITCODE
+            if ($queryExit -eq 2) { return $null }
+            if ($null -eq $queryExit -or $queryExit -ne 0) { throw 'Could not verify the remote release tag.' }
+            $direct = $null
+            $peeled = $null
+            foreach ($record in $records) {
+              if ($record -notmatch '^([a-f0-9]{40,64})\s+(.+)$') { throw 'Unexpected remote tag response.' }
+              $objectId, $reference = $Matches[1], $Matches[2]
+              if ($reference -eq $directRef -and -not $direct) { $direct = $objectId }
+              elseif ($reference -eq $peeledRef -and -not $peeled) { $peeled = $objectId }
+              else { throw 'Unexpected or duplicate remote tag reference.' }
+            }
+            if (-not $direct) { throw 'Remote tag lookup did not return the direct reference.' }
+            if ($peeled) { return $peeled }
+            return $direct
+          }
+          # Draft creation can leave an absent tag uncreated. Establish an exact ref first.
+          $existingTagCommit = Get-RemoteReleaseCommit
+          if ($existingTagCommit -and $existingTagCommit -ne $env:SOURCE_REVISION) {
+            throw 'Existing release tag points to different source; no tag or release was changed.'
+          }
+          if (-not $existingTagCommit) {
+            gh api --method POST ('repos/' + $env:GH_REPO + '/git/refs') -f ('ref=refs/tags/' + $tag) -f ('sha=' + $env:SOURCE_REVISION) --silent
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create the exact release tag; no existing tag was moved.' }
+          }
+          if ((Get-RemoteReleaseCommit) -ne $env:SOURCE_REVISION) {
+            throw 'Release tag does not match the built source; no draft was created.'
+          }
           $assets = @($items | Sort-Object Name | ForEach-Object FullName)
-          gh release create ('v' + $env:RELEASE_VERSION) --target $env:SOURCE_REVISION --draft --prerelease --title ('Multiseat Windows Prototype ' + $env:RELEASE_VERSION) --notes-file installer/RELEASE-NOTES.md @assets
+          gh release create $tag --verify-tag --target $env:SOURCE_REVISION --draft --prerelease --title ('Multiseat Windows Prototype ' + $env:RELEASE_VERSION) --notes-file installer/RELEASE-NOTES.md @assets
           if ($LASTEXITCODE -ne 0) { throw 'Draft prerelease creation failed.' }
+          if ((Get-RemoteReleaseCommit) -ne $env:SOURCE_REVISION) {
+            throw 'Release tag changed or does not match the built source; draft must remain unpublished.'
+          }
