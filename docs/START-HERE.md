@@ -4,11 +4,9 @@ Atualizado em 2026-10-16. Este é um protótipo de pesquisa para um produto mult
 
 ## Abrir o painel
 
-A distribuição planejada é **`v0.1.0-experimental.1`**. Confira a disponibilidade em [Releases](https://github.com/guhttps/multiseat-windows/releases). Enquanto a versão não estiver publicada, o caminho disponível é compilar o código abaixo.
+Versão disponível: [**v0.1.0-experimental.1**](https://github.com/guhttps/multiseat-windows/releases/tag/v0.1.0-experimental.1). Você pode usar o painel sem instalar ferramentas de desenvolvimento.
 
-Quando os arquivos estiverem publicados:
-
-1. Siga [Download e instalação](DOWNLOAD-INSTALL.md) para escolher instalador ou ZIP.
+1. [Baixe o instalador Windows x64](https://github.com/guhttps/multiseat-windows/releases/download/v0.1.0-experimental.1/MultiseatPrototype-0.1.0-experimental.1-windows-x64-installer.exe), abra o arquivo e conclua a instalação por usuário. Confira integridade, requisitos e a opção ZIP em [Download e instalação](DOWNLOAD-INSTALL.md).
 2. Abra **Multiseat Windows Prototype** pelo menu Iniciar, ou `MultiseatPrototype.exe` na pasta extraída.
 3. Clique em **Identificar monitores** e escolha as telas no plano das duas estações.
 4. Em cada estação, clique em **Associar teclado + mouse**. Mantenha o painel em foco, pressione **F6** no teclado desejado e clique com o botão direito do mouse desejado dentro do painel.

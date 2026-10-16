@@ -4,7 +4,13 @@ O **Multiseat Windows Prototype** é um painel experimental para organizar um pl
 
 ## Disponibilidade
 
-Versão planejada: **`v0.1.0-experimental.1`**. A publicação ainda precisa ser confirmada em [Releases](https://github.com/guhttps/multiseat-windows/releases). Os nomes abaixo descrevem os arquivos preparados para essa versão; use os downloads somente quando aparecerem no release público:
+Versão publicada: [**v0.1.0-experimental.1**](https://github.com/guhttps/multiseat-windows/releases/tag/v0.1.0-experimental.1). Os downloads foram conferidos sem autenticação e seus hashes correspondem aos arquivos compilados no GitHub.
+
+1. [Baixe o instalador para Windows x64](https://github.com/guhttps/multiseat-windows/releases/download/v0.1.0-experimental.1/MultiseatPrototype-0.1.0-experimental.1-windows-x64-installer.exe).
+2. Abra o arquivo e conclua a instalação por usuário.
+3. Abra **Multiseat Windows Prototype** pelo menu Iniciar.
+
+Se preferir, [baixe o ZIP portátil](https://github.com/guhttps/multiseat-windows/releases/download/v0.1.0-experimental.1/MultiseatPrototype-0.1.0-experimental.1-windows-x64.zip), extraia todos os arquivos e abra `MultiseatPrototype.exe`.
 
 | Arquivo | Uso |
 |---|---|
@@ -13,7 +19,7 @@ Versão planejada: **`v0.1.0-experimental.1`**. A publicação ainda precisa ser
 | `SHA256SUMS.txt` | Hashes para conferir a integridade dos arquivos publicados |
 | `release-manifest.json` | Identifica a versão e os arquivos da distribuição |
 
-Se a versão ainda não aparecer, siga [Compilar o código](START-HERE.md#compilar-o-código). O repositório público, por si só, não significa que já existe um instalador disponível.
+Os arquivos acima estão na seção **Assets** da versão. **Source code** é o código-fonte; para usar o painel, escolha o instalador ou o ZIP com o nome `MultiseatPrototype`.
 
 ## Requisitos
 

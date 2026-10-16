@@ -19,7 +19,7 @@ Essas verificações não criam duas estações e não demonstram compatibilidad
 
 A preparação da edição pública revisou o conteúdo, os 33 commits privados, nomes de arquivos, autoria e inventário remoto. Uma varredura Gitleaks adicional não encontrou segredos no histórico privado. Um caminho pessoal foi removido do conteúdo atual; detalhes do computador foram generalizados. A publicação usa uma base nova e revisada, preservando o repositório anterior como arquivo privado, para não expor versões antigas ou logs do Actions.
 
-Resultados brutos, pacotes, mídias e discos de VM permanecem fora do Git. Publicação pública confirmada, inclusive sem autenticação; commit privado antigo recusado no novo repositório. Os workflows [Windows build](https://github.com/guhttps/multiseat-windows/actions/runs/38876490262) e [Public content safety](https://github.com/guhttps/multiseat-windows/actions/runs/38876490300) passaram no código publicado. Secret scanning, push protection e relatos privados de vulnerabilidades habilitados. Há política de publicação, ações fixadas em commits e permissões mínimas nos workflows. Nenhuma ferramenta fornece garantia absoluta de ausência de informações sensíveis; veja [revisão de publicação](PUBLICATION-REVIEW.md) e [SECURITY.md](../SECURITY.md).
+Resultados brutos, pacotes locais, mídias e discos de VM permanecem fora do Git. Publicação pública confirmada, inclusive sem autenticação; commit privado antigo recusado no novo repositório. Os workflows [Windows build](https://github.com/guhttps/multiseat-windows/actions/runs/38933836616) e [Public content safety](https://github.com/guhttps/multiseat-windows/actions/runs/38933836603) passaram no código publicado. Secret scanning, push protection e relatos privados de vulnerabilidades habilitados. Há política de publicação, ações fixadas em commits e permissões mínimas nos workflows. Nenhuma ferramenta fornece garantia absoluta de ausência de informações sensíveis; veja [revisão de publicação](PUBLICATION-REVIEW.md) e [SECURITY.md](../SECURITY.md).
 
 ## O que impede o produto completo
 
@@ -31,9 +31,9 @@ A comparação em VM foi preparada, mas não há resultado confirmado da conexã
 
 ## Painel e distribuição experimental
 
-O painel em desenvolvimento organiza duas estações, lista os dispositivos disponíveis e guarda um plano no perfil local. A associação de teclado e mouse usa F6 e clique direito dentro do próprio painel. O plano ainda não aplica isolamento a aplicativos externos. Alterações de conexões ou da topologia dos monitores exigem revisar as seleções.
+O painel da versão **v0.1.0-experimental.1** organiza duas estações, lista os dispositivos disponíveis e guarda um plano no perfil local. A associação de teclado e mouse usa F6 e clique direito dentro do próprio painel. O plano ainda não aplica isolamento a aplicativos externos. Alterações de conexões ou da topologia dos monitores exigem revisar as seleções.
 
-A distribuição do protótipo terá instalador por usuário e pacote portátil para Windows x64. Ela inclui o painel e quatro ferramentas de diagnóstico/teste; experimentos que habilitam sessões, resultados locais e ferramentas administrativas ficam fora do pacote. Consulte [download e instalação](DOWNLOAD-INSTALL.md) para disponibilidade e instruções.
+A [distribuição experimental publicada](https://github.com/guhttps/multiseat-windows/releases/tag/v0.1.0-experimental.1) oferece instalador por usuário e pacote portátil para Windows x64. Ela inclui o painel e quatro ferramentas de diagnóstico/teste. Conteúdo permitido, hashes, privacidade, instalação/desinstalação e preservação de configurações passaram no [workflow de distribuição](https://github.com/guhttps/multiseat-windows/actions/runs/38933842227). Uma revisão independente dos artefatos não identificou dados pessoais ou segredos. Os quatro downloads públicos foram conferidos sem autenticação. Instalação por usuário e inicialização do painel também passaram no ambiente alvo, sem reinicialização. Consulte [download e instalação](DOWNLOAD-INSTALL.md) para os passos de uso e a ausência de assinatura de código desta versão.
 
 ## Próximo resultado necessário
 

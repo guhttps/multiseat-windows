@@ -8,13 +8,17 @@ Implementação independente em pesquisa para permitir que várias pessoas usem 
 
 O painel permite visualizar monitores, teclados, mouses e saídas de áudio, organizar um plano local para duas estações e abrir os testes do protótipo. Salvar esse plano ainda não ativa postos independentes.
 
-A primeira distribuição com interface está sendo preparada como **`v0.1.0-experimental.1`**. Consulte [Releases](https://github.com/guhttps/multiseat-windows/releases): o instalador e o ZIP estarão disponíveis somente após a publicação dessa versão.
+[**Baixar instalador para Windows x64**](https://github.com/guhttps/multiseat-windows/releases/download/v0.1.0-experimental.1/MultiseatPrototype-0.1.0-experimental.1-windows-x64-installer.exe)
 
-Veja [Download, instalação e primeiro uso](docs/DOWNLOAD-INSTALL.md) para os passos simples, requisitos e limites. O instalador planejado é por usuário, sem administrador; o ZIP deve ser extraído por inteiro antes de abrir `MultiseatPrototype.exe`.
+1. Baixe e abra o instalador.
+2. Conclua a instalação por usuário, sem administrador.
+3. Abra **Multiseat Windows Prototype** pelo menu Iniciar.
+
+Versão **`v0.1.0-experimental.1`** publicada. Também há [ZIP portátil](https://github.com/guhttps/multiseat-windows/releases/download/v0.1.0-experimental.1/MultiseatPrototype-0.1.0-experimental.1-windows-x64.zip) e [notas da versão com hashes](https://github.com/guhttps/multiseat-windows/releases/tag/v0.1.0-experimental.1). O pacote ainda não tem assinatura de código; veja [Download, instalação e primeiro uso](docs/DOWNLOAD-INSTALL.md) para integridade, requisitos e limites.
 
 | Recurso | Estado |
 |---|---|
-| Painel gráfico e plano local de duas estações | Em preparação para a distribuição experimental |
+| Painel gráfico e plano local de duas estações | Disponível na versão experimental |
 | Diagnóstico de sessão, desktop e monitores | Implementado |
 | Identificação de dois teclados e dois mouses | Implementada via Raw Input |
 | Associação e contagem separada nos painéis próprios | Demonstrada em laboratório |
@@ -22,7 +26,7 @@ Veja [Download, instalação e primeiro uso](docs/DOWNLOAD-INSTALL.md) para os p
 | Contas Windows e foco independentes para aplicativos externos | Ainda não demonstrados |
 | Atribuição exclusiva de monitor, entrada e áudio por estação | Em pesquisa |
 | Duas contas de League of Legends simultâneas | Não validado |
-| Instalador e ZIP do painel de pesquisa | Em preparação; publicação deve ser confirmada em Releases |
+| Instalador e ZIP do painel de pesquisa | Publicados; instalação/desinstalação verificadas |
 | Motor de postos, serviço, driver aplicável e atualização do produto | Dependem da prova de integração nativa |
 
 ## Compilar e verificar
