@@ -71,7 +71,7 @@ foreach ($relative in $paths) {
     }
     $full = Assert-ReviewPath $relative
     if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw ('Tracked file unavailable: ' + $relative) }
-    if ((Get-Item -LiteralPath $full).Length -gt 2MB) { throw ('Public source file exceeds review limit: ' + $relative) }
+    if ((Get-Item -LiteralPath $full -Force -ErrorAction Stop).Length -gt 2MB) { throw ('Public source file exceeds review limit: ' + $relative) }
     Test-Text $relative ([IO.File]::ReadAllText($full))
 }
 if ($History) {
