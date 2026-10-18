@@ -34,6 +34,7 @@ Administração do convidado por [PowerShell Direct](https://learn.microsoft.com
 | Duas imagens remotas apresentadas nos monitores locais | Dois framebuffers recebidos e janelas criadas para monitores distintos; conferência visual física pendente |
 | Encaminhamento sintético por conexão | Passou; cada Notepad observou sua fixture exata, sem a fixture cruzada nas amostras |
 | Encerramento do cliente após a prova sintética | Passou na repetição; código de saída zero e stderr vazio |
+| Ponteiros dos dois mouses no frontend | Miras separadas confirmadas pelo usuário; captura e liberação do cursor compartilhado observadas em runtime |
 | Interação física simultânea e troca de foco sem contaminação | Não observado |
 | Recuperação de falha, hotplug, bloqueio e UAC | Não observado |
 
@@ -50,6 +51,8 @@ A verificação de documento vazio usa `document_empty_now` com consulta bem-suc
 Compilação Release e 14 testes CTest passaram localmente, além das fixtures inertes do preparo do convidado. Esses testes e a prova sintética têm escopos diferentes. Os relatórios brutos continuam privados.
 
 O frontend usa buffer de pintura por janela e mostra o progresso de associação de teclado e mouse de cada posto. Um único par não completa a associação dos dois postos; o teste físico requer os dois pares conectados. O smoke offline também exercita a pintura das duas janelas ocultas, sem capturar entrada nem conectar.
+
+Após o relato de que os dois mouses moviam o cursor principal do host, o modo físico passou a prender e ocultar esse cursor durante a captura do frontend. O usuário confirmou movimento separado das miras; uma coleta somente de leitura também observou a captura e sua liberação com o cliente ainda aberto e stderr vazio. As fixtures inertes verificaram falhas de aquisição/liberação, destruição e preservação de uma restrição mais recente de outro aplicativo. Isso ainda não confirma a digitação física nos Notepads nem dois cursores independentes do sistema Windows.
 
 ## Critério de conclusão
 

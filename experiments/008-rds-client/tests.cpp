@@ -1,6 +1,7 @@
 #include "network.h"
 #include "config.h"
 #include "input-router.h"
+#include "cursor-lease.h"
 #include "ssl-diagnostics.h"
 #include <wincrypt.h>
 #include <bcrypt.h>
@@ -168,6 +169,82 @@ void certificate_tests() {
 RAWKEYBOARD key(USHORT virtual_key, USHORT scan, USHORT flags = 0) {
     RAWKEYBOARD result{}; result.VKey = virtual_key; result.MakeCode = scan; result.Flags = flags; return result;
 }
+struct CursorFixture {
+    static inline RECT desktop{-1200, 0, 1920, 1080}, clipped{};
+    static inline POINT position{};
+    static inline HCURSOR shape{};
+    static inline unsigned writes{};
+    static inline bool fail_clip{}, fail_release{};
+    static void reset() {
+        clipped = desktop; position = {200, 200};
+        shape = reinterpret_cast<HCURSOR>(1); writes = 0;
+        fail_clip = fail_release = false;
+    }
+    static BOOL WINAPI get_clip(LPRECT value) { *value = clipped; return TRUE; }
+    static BOOL WINAPI clip(const RECT* value) {
+        if ((value && fail_clip) || (!value && fail_release)) return FALSE;
+        clipped = value ? *value : desktop; ++writes; return TRUE;
+    }
+    static BOOL WINAPI get_position(LPPOINT value) { *value = position; return TRUE; }
+    static HCURSOR WINAPI set_shape(HCURSOR value) { HCURSOR old = shape; shape = value; return old; }
+    static HCURSOR WINAPI get_shape() { return shape; }
+    static CursorApi api() { return {get_clip, clip, get_position, set_shape, get_shape}; }
+};
+void cursor_tests() {
+    const RECT client{0, 50, 800, 650};
+    CursorFixture::reset();
+    {
+        CursorLease lease(CursorFixture::api());
+        require(lease.release() && CursorFixture::writes == 0);
+        require(lease.acquire(client, CursorFixture::desktop) && lease.active());
+        require(CursorFixture::clipped.right - CursorFixture::clipped.left == 1 && !CursorFixture::shape);
+        require(lease.acquire(client, CursorFixture::desktop) && CursorFixture::writes == 1);
+        require(lease.release() && !lease.active());
+        require(EqualRect(&CursorFixture::clipped, &CursorFixture::desktop) && CursorFixture::shape);
+    }
+    CursorFixture::reset();
+    CursorFixture::clipped = {10, 10, 100, 100};
+    {
+        CursorLease lease(CursorFixture::api());
+        require(!lease.acquire(client, CursorFixture::desktop) && CursorFixture::writes == 0 && CursorFixture::shape);
+    }
+    CursorFixture::reset();
+    CursorFixture::fail_clip = true;
+    {
+        CursorLease lease(CursorFixture::api());
+        require(!lease.acquire(client, CursorFixture::desktop) && !lease.active() && CursorFixture::shape);
+    }
+    CursorFixture::reset();
+    bool exception_reached = false;
+    try {
+        CursorLease lease(CursorFixture::api());
+        require(lease.acquire(client, CursorFixture::desktop));
+        exception_reached = true;
+        throw std::runtime_error("Inert cleanup fixture.");
+    } catch (const std::runtime_error&) { }
+    require(exception_reached && EqualRect(&CursorFixture::clipped, &CursorFixture::desktop) && CursorFixture::shape);
+    CursorFixture::reset();
+    {
+        CursorLease lease(CursorFixture::api());
+        require(lease.acquire(client, CursorFixture::desktop));
+        const RECT newer{25, 25, 75, 75};
+        CursorFixture::clipped = newer;
+        CursorFixture::shape = reinterpret_cast<HCURSOR>(2);
+        require(lease.release() && EqualRect(&CursorFixture::clipped, &newer) &&
+            CursorFixture::shape == reinterpret_cast<HCURSOR>(2));
+    }
+    CursorFixture::reset();
+    {
+        CursorLease lease(CursorFixture::api());
+        const RECT negative{-1000, 50, -200, 650};
+        require(lease.acquire(negative, CursorFixture::desktop));
+        require(CursorFixture::clipped.left == -600 && CursorFixture::clipped.top == 350);
+        CursorFixture::fail_release = true;
+        require(!lease.release() && lease.active());
+        CursorFixture::fail_release = false;
+    }
+    require(EqualRect(&CursorFixture::clipped, &CursorFixture::desktop) && CursorFixture::shape);
+}
 void router_tests() {
     rejects([] { InputRouter invalid({ std::pair{0U, 720U}, std::pair{1280U, 720U} },
         [](unsigned, const InputEvent&) {}); });
@@ -236,6 +313,7 @@ bool run_self_tests() {
         ssl_diagnostic_tests(); std::cout << "PASS: bounded TLS diagnostic parser returns numeric codes only.\n";
         certificate_tests(); std::cout << "PASS: ephemeral certificate SHA-256 leaf pin and mismatch rejection.\n";
         router_tests(); std::cout << "PASS: per-device routing, clamping, repeats and release/reset/removal.\n";
+        cursor_tests(); std::cout << "PASS: inert cursor capture, cleanup, failure and foreign-owner preservation.\n";
         std::cout << "Offline tests only; no RDP connection, input registration, trust-store or host configuration changes.\n";
         return true;
     } catch (const std::exception& error) { std::cerr << "FAIL: " << error.what() << '\n'; return false; }

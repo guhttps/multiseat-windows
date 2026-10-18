@@ -133,7 +133,7 @@ if(MULTISEAT_BUILD_RDS_LAB)
   set(rds_lab_root "${CMAKE_CURRENT_SOURCE_DIR}/experiments/008-rds-client")
   multiseat_experiment(ms-rds-lab-client "${rds_lab_root}/main.cpp")
   target_sources(ms-rds-lab-client PRIVATE
-    "${rds_lab_root}/config.cpp" "${rds_lab_root}/input-router.cpp"
+    "${rds_lab_root}/config.cpp" "${rds_lab_root}/input-router.cpp" "${rds_lab_root}/cursor-lease.cpp"
     "${rds_lab_root}/transport.cpp" "${rds_lab_root}/network.cpp"
     "${rds_lab_root}/ssl-diagnostics.cpp" "${rds_lab_root}/tests.cpp")
   target_link_libraries(ms-rds-lab-client PRIVATE freerdp winpr
@@ -141,7 +141,7 @@ if(MULTISEAT_BUILD_RDS_LAB)
   if(BUILD_TESTING)
     multiseat_experiment(ms-rds-lab-logic "${rds_lab_root}/tests-main.cpp")
     target_sources(ms-rds-lab-logic PRIVATE "${rds_lab_root}/config.cpp"
-      "${rds_lab_root}/input-router.cpp" "${rds_lab_root}/network.cpp"
+      "${rds_lab_root}/input-router.cpp" "${rds_lab_root}/cursor-lease.cpp" "${rds_lab_root}/network.cpp"
       "${rds_lab_root}/ssl-diagnostics.cpp" "${rds_lab_root}/tests.cpp")
     target_link_libraries(ms-rds-lab-logic PRIVATE user32 crypt32 bcrypt ncrypt runtimeobject shell32 ole32 advapi32 ws2_32)
     add_test(NAME rds-lab-offline-policy COMMAND ms-rds-lab-logic)

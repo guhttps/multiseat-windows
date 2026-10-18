@@ -1,6 +1,7 @@
 #include "network.h"
 #include "config.h"
 #include "input-router.h"
+#include "cursor-lease.h"
 #include "transport.h"
 #include "../common/raw-input.h"
 #include <roapi.h>
@@ -87,6 +88,7 @@ public:
     std::array<View, 2> views{};
     std::array<std::unique_ptr<Transport>, 2> transports;
     InputRouter router;
+    CursorLease cursor;
     bool smoke = false, synthetic = false, unattended = false, closing = false, registered = false, capture = false;
     bool sent_synthetic = false, send_failed = false, waiting_foreground_reported = false;
     ULONGLONG started = 0, connected_since = 0, synthetic_sent_at = 0;
@@ -99,6 +101,7 @@ public:
                 transports[seat]->state() == TransportState::Connected) send_failed = true;
         }), smoke(smoke_mode), synthetic(synthetic_mode), unattended(unattended_mode) {}
     ~Application() {
+        cursor.release();
         router.release_all();
         unregister_input();
         for (auto& transport : transports) if (transport) transport->stop();
@@ -149,6 +152,25 @@ public:
                 throw std::runtime_error("Raw Input registration failed.");
             registered = true;
         } else if (!enabled) unregister_input();
+        if (enabled && router.ready()) {
+            RECT client{};
+            const HWND active = GetForegroundWindow();
+            if (active != views[0].window && active != views[1].window) {
+                capture = false;
+                router.release_all();
+                unregister_input();
+                if (!cursor.release()) throw std::runtime_error("Cannot release the owned host cursor capture.");
+                return;
+            }
+            if (!GetClientRect(active, &client)) throw std::runtime_error("Cannot locate cursor capture area.");
+            POINT origin{client.left, client.top}, end{client.right, client.bottom};
+            if (!ClientToScreen(active, &origin) || !ClientToScreen(active, &end))
+                throw std::runtime_error("Cannot map cursor capture area.");
+            client = {origin.x, origin.y, end.x, end.y};
+            const int x = GetSystemMetrics(SM_XVIRTUALSCREEN), y = GetSystemMetrics(SM_YVIRTUALSCREEN);
+            const RECT desktop{x, y, x + GetSystemMetrics(SM_CXVIRTUALSCREEN), y + GetSystemMetrics(SM_CYVIRTUALSCREEN)};
+            if (!cursor.acquire(client, desktop)) throw std::runtime_error("Cannot safely capture the shared host cursor.");
+        } else if (!cursor.release()) throw std::runtime_error("Cannot release the owned host cursor capture.");
     }
     void invalidate() { for (const View& view : views) InvalidateRect(view.window, nullptr, FALSE); }
     void raw(HRAWINPUT handle) {
@@ -160,9 +182,10 @@ public:
         if (input.header.dwType == RIM_TYPEKEYBOARD) {
             const RAWKEYBOARD& key = input.data.keyboard;
             if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F12) { close(0); return; }
-            if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F8) { router.reset(); invalidate(); return; }
+            if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F8) { router.reset(); update_gate(); invalidate(); return; }
             router.keyboard(input.header.hDevice, key, true);
         } else router.mouse(input.header.hDevice, input.data.mouse, true);
+        update_gate();
         invalidate();
     }
     RECT surface(const RECT& client, unsigned index) const {
@@ -205,7 +228,7 @@ public:
             status += capture ? L"\nComplete os dois pares: F6 em cada teclado; clique direito em cada mouse." :
                 L"\nAtive um painel para associar. São necessários dois teclados e dois mouses.";
         }
-        else status += capture ? L"\nEntrada ativa por dispositivo. F8 reassocia; F12 encerra." :
+        else status += capture ? L"\nUse as miras vermelhas. Mouse do host preso; F8 libera, F12 encerra." :
             L"\nEntrada pausada. Ative uma destas janelas para continuar; F12 encerra.";
         RECT text{ 10, 8, client.right - 10, 82 };
         DrawTextW(dc, status.c_str(), -1, &text, DT_LEFT | DT_NOPREFIX);
@@ -301,6 +324,7 @@ public:
         closing = true;
         result = exit_code;
         capture = false;
+        if (!cursor.release()) result = 1;
         router.release_all();
         unregister_input();
         report_progress(true);
@@ -313,7 +337,7 @@ public:
         WNDCLASSEXW type{};
         type.cbSize = sizeof(type); type.hInstance = GetModuleHandleW(nullptr);
         type.lpszClassName = window_class; type.lpfnWndProc = procedure;
-        type.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+        type.hCursor = nullptr;
         if (!RegisterClassExW(&type)) throw std::runtime_error("Cannot register lab view class.");
         std::vector<RECT> monitors;
         if (!smoke && !EnumDisplayMonitors(nullptr, nullptr, collect_monitor, reinterpret_cast<LPARAM>(&monitors)))
@@ -354,6 +378,7 @@ public:
             TranslateMessage(&message); DispatchMessageW(&message);
         }
         if (status == -1) result = 1;
+        if (!cursor.release()) result = 1;
         router.release_all();
         unregister_input();
         for (auto& transport : transports) transport->stop();
@@ -375,12 +400,18 @@ public:
                 app.raw(reinterpret_cast<HRAWINPUT>(lparam));
                 return DefWindowProcW(window, message, wparam, lparam);
             case WM_INPUT_DEVICE_CHANGE:
-                if (wparam == GIDC_REMOVAL) { app.router.device_removed(reinterpret_cast<HANDLE>(lparam)); app.invalidate(); }
+                if (wparam == GIDC_REMOVAL) { app.router.device_removed(reinterpret_cast<HANDLE>(lparam)); app.update_gate(); app.invalidate(); }
                 return 0;
             case WM_TIMER: app.tick(); return 0;
             case WM_ACTIVATEAPP: app.update_gate(); app.invalidate(); return 0;
             case WM_KEYDOWN: if (wparam == VK_F12) app.close(0); return 0;
             case WM_CLOSE: app.close(0); return 0;
+            case WM_SETCURSOR:
+                if (LOWORD(lparam) == HTCLIENT) {
+                    SetCursor(app.cursor.active() && app.capture && app.foreground() ? nullptr : LoadCursorW(nullptr, IDC_ARROW));
+                    return TRUE;
+                }
+                break;
             case WM_ERASEBKGND: return 1;
             case WM_SIZE: InvalidateRect(window, nullptr, FALSE); return 0;
             case frame_message: case state_message: app.update_gate(); app.invalidate(); return 0;
