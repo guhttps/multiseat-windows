@@ -297,10 +297,99 @@ void router_tests() {
     router.mouse(ma, left, true); require(events.size() == button_count);
     router.device_removed(reinterpret_cast<HANDLE>(99)); require(router.ready());
     router.device_removed(mb);
-    require(!router.ready() && router.seat(0).held_buttons == 0 && router.seat(1).held_keys.empty());
+    require(!router.ready() && router.seat(0).held_buttons == 1 && router.seat(1).held_keys.empty());
+    require(router.routable(0) && !router.routable(1) && router.seat(0).keyboard == ka &&
+        router.seat(0).mouse == ma && router.seat(1).keyboard == kb && !router.seat(1).mouse);
     require(events.back().second.kind == EventKind::Key || events.back().second.kind == EventKind::Button);
+    router.reset();
+    require(!router.any_routable() && router.seat(0).held_buttons == 0);
     for (const SeatInput* seat : { &router.seat(0), &router.seat(1) })
         require(!seat->keyboard && !seat->mouse);
+}
+void router_hotplug_tests() {
+    const std::array<HANDLE, 2> keyboards{reinterpret_cast<HANDLE>(1), reinterpret_cast<HANDLE>(2)};
+    const std::array<HANDLE, 2> mice{reinterpret_cast<HANDLE>(3), reinterpret_cast<HANDLE>(4)};
+    const HANDLE replacement = reinterpret_cast<HANDLE>(5);
+    RAWMOUSE pair{}; pair.usButtonFlags = RI_MOUSE_RIGHT_BUTTON_DOWN;
+    RAWMOUSE left{}; left.usButtonFlags = RI_MOUSE_LEFT_BUTTON_DOWN;
+    RAWMOUSE motion{}; motion.lLastX = 7;
+    for (unsigned removed_seat = 0; removed_seat < 2; ++removed_seat) {
+        for (bool remove_keyboard : {false, true}) {
+            std::vector<std::pair<unsigned, InputEvent>> events;
+            InputRouter router({ std::pair{1280U, 720U}, std::pair{1280U, 720U} },
+                [&](unsigned seat, const InputEvent& event) { events.emplace_back(seat, event); });
+            // Initial capture still requires explicit pairing of all four devices.
+            router.keyboard(keyboards[0], key(VK_F6, 0x40), true);
+            router.mouse(mice[0], pair, true);
+            router.keyboard(keyboards[0], key('A', 0x1E), true);
+            router.mouse(mice[0], left, true);
+            require(!router.any_routable() && events.empty());
+            if (remove_keyboard) {
+                router.mouse(mice[1], pair, true);
+                router.keyboard(keyboards[1], key(VK_F6, 0x40), true);
+            } else {
+                router.keyboard(keyboards[1], key(VK_F6, 0x40), true);
+                router.mouse(mice[1], pair, true);
+            }
+            require(router.ready() && router.routable(0) && router.routable(1) && events.empty());
+            for (unsigned i = 0; i < 2; ++i) {
+                router.keyboard(keyboards[i], key('A', 0x1E), true);
+                router.mouse(mice[i], left, true);
+            }
+            require(events.size() == 4);
+            const unsigned peer = 1 - removed_seat;
+            const HANDLE removed = remove_keyboard ? keyboards[removed_seat] : mice[removed_seat];
+            router.device_removed(removed);
+            require(events.size() == 6 && events[4].first == removed_seat && events[5].first == removed_seat &&
+                !events[4].second.down && !events[5].second.down);
+            require(!router.ready() && !router.routable(removed_seat) && router.routable(peer) &&
+                router.seat(removed_seat).held_keys.empty() && router.seat(removed_seat).held_buttons == 0 &&
+                router.seat(peer).keyboard == keyboards[peer] && router.seat(peer).mouse == mice[peer] &&
+                router.seat(peer).held_keys.contains(0x1E) && router.seat(peer).held_buttons == 1);
+            require(router.seat(removed_seat).keyboard == (remove_keyboard ? nullptr : keyboards[removed_seat]) &&
+                router.seat(removed_seat).mouse == (remove_keyboard ? mice[removed_seat] : nullptr));
+            router.device_removed(nullptr);
+            router.device_removed(reinterpret_cast<HANDLE>(99));
+            router.device_removed(removed); // Duplicate notifications must not release the peer.
+            router.keyboard(keyboards[removed_seat], key('C', 0x2E), true);
+            router.mouse(mice[removed_seat], motion, true);
+            router.keyboard(replacement, key('C', 0x2E), true);
+            router.mouse(replacement, motion, true);
+            require(events.size() == 6 && !router.ready());
+            router.keyboard(keyboards[peer], key('C', 0x2E), true);
+            router.keyboard(keyboards[peer], key('C', 0x2E, RI_KEY_BREAK), true);
+            router.mouse(mice[peer], motion, true);
+            require(events.size() == 9 && events[6].first == peer && events[7].first == peer &&
+                events[8].first == peer && events[8].second.kind == EventKind::Move &&
+                router.seat(peer).held_keys.contains(0x1E) && router.seat(peer).held_buttons == 1);
+            if (remove_keyboard) {
+                router.keyboard(keyboards[peer], key(VK_F6, 0x40), true);
+                require(!router.seat(removed_seat).keyboard); // A bound peer cannot fill the vacancy.
+                router.keyboard(replacement, key(VK_F6, 0x40), false);
+                require(!router.seat(removed_seat).keyboard);
+                router.keyboard(replacement, key(VK_F6, 0x40), true);
+            } else {
+                router.mouse(replacement, pair, false);
+                require(!router.seat(removed_seat).mouse);
+                router.mouse(replacement, pair, true);
+            }
+            require(router.ready() && router.routable(removed_seat) && events.size() == 9);
+            const HANDLE current_keyboard = remove_keyboard ? replacement : keyboards[removed_seat];
+            router.keyboard(current_keyboard, key('A', 0x1E, RI_KEY_BREAK), true);
+            require(events.size() == 9); // Removal releases are not replayed on re-pairing.
+            router.keyboard(current_keyboard, key('C', 0x2E), true);
+            require(events.size() == 10 && events.back().first == removed_seat &&
+                events.back().second.down && !events.back().second.repeat);
+            router.reset();
+            require(!router.any_routable());
+            router.keyboard(keyboards[0], key(VK_F6, 0x40), true);
+            router.mouse(mice[0], pair, true);
+            const size_t after_reset = events.size();
+            router.keyboard(keyboards[0], key('A', 0x1E), true);
+            router.mouse(mice[0], left, true);
+            require(!router.any_routable() && events.size() == after_reset);
+        }
+    }
 }
 void router_availability_tests() {
     std::vector<std::pair<unsigned, InputEvent>> events;
@@ -358,6 +447,7 @@ bool run_self_tests() {
         certificate_tests(); std::cout << "PASS: ephemeral certificate SHA-256 leaf pin and mismatch rejection.\n";
         router_tests(); std::cout << "PASS: per-device routing, clamping, repeats and release/reset/removal.\n";
         router_availability_tests(); std::cout << "PASS: failed-seat input release, healthy-seat continuity and no reconnect replay.\n";
+        router_hotplug_tests(); std::cout << "PASS: per-seat device removal, peer held-input continuity and explicit re-pairing in both directions.\n";
         cursor_tests(); std::cout << "PASS: inert cursor capture, cleanup, failure and foreign-owner preservation.\n";
         std::cout << "Offline tests only; no RDP connection, input registration, trust-store or host configuration changes.\n";
         return true;

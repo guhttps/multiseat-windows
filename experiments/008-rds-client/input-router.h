@@ -29,6 +29,10 @@ public:
     using Sink = std::function<void(unsigned, const InputEvent&)>;
     InputRouter(const std::array<std::pair<unsigned, unsigned>, 2>& sizes, Sink sink);
     bool ready() const;
+    // Initial routing requires both complete pairs. After removal, a complete
+    // enabled peer remains usable until an explicit full reset.
+    bool routable(unsigned seat) const;
+    bool any_routable() const;
     void keyboard(HANDLE device, const RAWKEYBOARD& key, bool enabled);
     void mouse(HANDLE device, const RAWMOUSE& mouse, bool enabled);
     void set_enabled(unsigned seat, bool enabled);
@@ -39,6 +43,7 @@ public:
 private:
     std::array<SeatInput, 2> seats_;
     Sink sink_;
+    bool initially_paired_{};
     void button(unsigned seat, unsigned button, bool down);
     void release(unsigned seat);
 };

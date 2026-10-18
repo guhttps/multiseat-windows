@@ -21,19 +21,30 @@ bool InputRouter::ready() const {
         return seat.keyboard && seat.mouse;
     });
 }
+bool InputRouter::routable(unsigned index) const {
+    const SeatInput& seat = seats_.at(index);
+    return initially_paired_ && seat.enabled && seat.keyboard && seat.mouse;
+}
+bool InputRouter::any_routable() const {
+    for (unsigned i = 0; i < seats_.size(); ++i) if (routable(i)) return true;
+    return false;
+}
 void InputRouter::keyboard(HANDLE device, const RAWKEYBOARD& key, bool enabled) {
     if (!enabled || !device || key.VKey == 255 || key.MakeCode == 0 || key.MakeCode >= 255) return;
     const bool down = (key.Flags & RI_KEY_BREAK) == 0;
-    if (!ready()) {
-        if (!down || key.VKey != VK_F6) return;
+    if (down && key.VKey == VK_F6) {
         for (const SeatInput& seat : seats_) if (seat.keyboard == device) return;
-        for (SeatInput& seat : seats_) if (!seat.keyboard) { seat.keyboard = device; return; }
+        for (SeatInput& seat : seats_) if (!seat.keyboard) {
+            seat.keyboard = device;
+            initially_paired_ = initially_paired_ || ready();
+            return;
+        }
         return;
     }
     for (unsigned i = 0; i < seats_.size(); ++i) {
         SeatInput& seat = seats_[i];
         if (seat.keyboard != device) continue;
-        if (!seat.enabled) return;
+        if (!routable(i)) return;
         if (key.VKey == VK_F6 || key.VKey == VK_F7 || key.VKey == VK_F8 || key.VKey == VK_F9 || key.VKey == VK_F12 ||
             key.VKey == VK_LWIN || key.VKey == VK_RWIN) return;
         if (key.VKey == VK_PAUSE && (key.Flags & RI_KEY_E1)) {
@@ -60,16 +71,22 @@ void InputRouter::button(unsigned index, unsigned button_index, bool down) {
 }
 void InputRouter::mouse(HANDLE device, const RAWMOUSE& mouse_input, bool enabled) {
     if (!enabled || !device) return;
-    if (!ready()) {
+    const bool assigned = std::any_of(seats_.begin(), seats_.end(), [device](const SeatInput& seat) {
+        return seat.mouse == device;
+    });
+    if (!assigned) {
         if (!(mouse_input.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN)) return;
-        for (const SeatInput& seat : seats_) if (seat.mouse == device) return;
-        for (SeatInput& seat : seats_) if (!seat.mouse) { seat.mouse = device; return; }
+        for (SeatInput& seat : seats_) if (!seat.mouse) {
+            seat.mouse = device;
+            initially_paired_ = initially_paired_ || ready();
+            return;
+        }
         return;
     }
     for (unsigned i = 0; i < seats_.size(); ++i) {
         SeatInput& seat = seats_[i];
         if (seat.mouse != device) continue;
-        if (!seat.enabled) return;
+        if (!routable(i)) return;
         const int previous_x = seat.x, previous_y = seat.y;
         if (mouse_input.usFlags & MOUSE_MOVE_ABSOLUTE) {
             seat.x = static_cast<int>(std::clamp<std::int64_t>(mouse_input.lLastX, 0, 65535) *
@@ -117,10 +134,18 @@ void InputRouter::release_all() {
 void InputRouter::reset() {
     release_all();
     for (SeatInput& seat : seats_) { seat.keyboard = nullptr; seat.mouse = nullptr; }
+    initially_paired_ = false;
 }
 void InputRouter::device_removed(HANDLE device) {
-    for (const SeatInput& seat : seats_) if (seat.keyboard == device || seat.mouse == device) {
-        reset(); return;
+    if (!device) return;
+    for (unsigned i = 0; i < seats_.size(); ++i) {
+        SeatInput& seat = seats_[i];
+        if (seat.keyboard != device && seat.mouse != device) continue;
+        // Release all held input for this incomplete pair, including its
+        // remaining device. The peer keeps its bindings and held state.
+        release(i);
+        if (seat.keyboard == device) seat.keyboard = nullptr;
+        if (seat.mouse == device) seat.mouse = nullptr;
     }
 }
 }

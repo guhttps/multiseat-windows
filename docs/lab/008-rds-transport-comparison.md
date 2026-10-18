@@ -1,6 +1,6 @@
 # Laboratório 008 — duas sessões reais por RDS em VM separada
 
-Estado em 2026-10-18: duas sessões autenticadas, transporte sintético até dois Notepads externos e ciclo sintético de desconexão/reconexão validados. O usuário confirmou digitação com os periféricos físicos e manutenção do alvo ao trocar aplicativos no outro posto. Recuperação física e medição quantitativa continuam pendentes. Este laboratório é auxiliar e não aprova o motor nativo nem duas instâncias de LoL. A decisão está no [ADR 0008](../architecture/0008-backend-code-review.md).
+Estado em 2026-10-18: duas sessões autenticadas, transporte sintético até dois Notepads externos e ciclo sintético de desconexão/reconexão validados. O usuário confirmou digitação com os periféricos físicos, manutenção do alvo ao trocar aplicativos no outro posto e recuperação por F9/F7 nos dois sentidos. A coleta completa da recuperação física, o teste de hotplug com hardware e a medição quantitativa continuam pendentes. Este laboratório é auxiliar e não aprova o motor nativo nem duas instâncias de LoL. A decisão está no [ADR 0008](../architecture/0008-backend-code-review.md).
 
 ## Escopo e ambiente
 
@@ -38,7 +38,9 @@ Administração do convidado por [PowerShell Direct](https://learn.microsoft.com
 | Digitação com os teclados físicos | Confirmada visualmente pelo usuário; contadores registraram encaminhamento nos dois postos sem teclas sem rota. Conferência automatizada dos textos exatos ainda pendente |
 | Troca de aplicativo enquanto o outro posto mantém digitação | Confirmada pelo usuário nos dois sentidos; conferência qualitativa, sem a contagem quantitativa de P02 |
 | Desconexão e reconexão do transporte de um posto | Passou em ciclo sintético: o outro recebeu texto durante a desconexão; os mesmos aplicativos e sessões foram preservados após reconectar; encerramento com código zero |
-| Recuperação com periféricos físicos, hotplug, bloqueio e UAC | Em validação; o ciclo sintético não aprova esses cenários |
+| Recuperação de transporte com periféricos físicos | Confirmada pelo usuário nos dois sentidos; registros disponíveis mostram desconexão do posto 1 e continuidade de entrada no posto 2. Conferência automatizada da sequência completa pendente |
+| Remoção e reconexão de periféricos | Fixtures offline passaram para remoção de teclado/mouse em qualquer posto, preservação do par intacto e reassociação explícita; prova com hardware real pendente |
+| Bloqueio e UAC | Pendentes; o ciclo sintético não aprova esses cenários |
 
 Relatórios brutos, endereços, SIDs, certificados, identificadores e credenciais ficam somente em `docs/lab/results/` e `build/`, ignorados pelo Git. A evidência pública deve limitar-se a procedimento, resultado, limitações e booleanos revisados, sem anexar os arquivos brutos ou capturas do desktop pessoal.
 
@@ -66,7 +68,9 @@ O cliente mantém um prazo e estado de entrada por conexão. Uma falha deixa o p
 
 A prova executada com `--transport-check --unattended-fixtures --recovery-cycle` manteve Raw Input desativado. O coletor exigiu dois editores vazios e com propriedade validada antes do envio. Com o posto 1 desconectado, confirmou a sessão 2 ativa e sua fixture correta, enquanto o documento do posto 1 permaneceu vazio. Depois da reconexão, revalidou o editor do posto 1 antes das teclas e confirmou os dois textos exatos, sem fixture cruzada, nos mesmos processos, contas e IDs de sessão do preparo. O cliente encerrou com código zero e stderr vazio.
 
-As tentativas iniciais reconectaram o transporte mas não entregaram a fixture imediata ao editor do posto 1. A prontidão de protocolo e o tratamento da sincronização de foco, sozinhos, não resolveram essa observação. O ciclo passou após separar o clique de ativação e as teclas, com uma nova conferência do editor entre essas etapas. Esse resultado é do teste sintético de transporte; recuperação física, perda de rede, encerramento independente de janelas, hotplug e desktops de segurança continuam exigindo provas próprias.
+As tentativas iniciais reconectaram o transporte mas não entregaram a fixture imediata ao editor do posto 1. A prontidão de protocolo e o tratamento da sincronização de foco, sozinhos, não resolveram essa observação. O ciclo passou após separar o clique de ativação e as teclas, com uma nova conferência do editor entre essas etapas. Esse resultado é do teste sintético de transporte. O usuário confirmou F9/F7 com os periféricos nos dois sentidos, mas os registros disponíveis comprovam somente a desconexão do posto 1 com entrada mantida no posto 2. A conferência física automatizada completa, perda de rede, encerramento independente de janelas, hotplug e desktops de segurança continuam exigindo provas próprias.
+
+O roteador foi alterado para que a remoção de um periférico libere somente as entradas do posto afetado. Ele preserva as associações e entradas mantidas pelo outro posto; o par incompleto aguarda reassociação explícita com F6 ou clique direito. Um reset por F8 ainda exige associar os quatro dispositivos novamente. As fixtures offline passaram com retirada de teclado e mouse nos dois sentidos, notificações duplicadas, IDs desconhecidos, continuidade do posto intacto e ausência de replay. Esse resultado não substitui o teste físico de hotplug.
 
 ## Critério de conclusão
 

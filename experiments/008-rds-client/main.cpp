@@ -176,7 +176,7 @@ public:
                 throw std::runtime_error("Raw Input registration failed.");
             registered = true;
         } else if (!enabled) unregister_input();
-        if (enabled && router.ready()) {
+        if (enabled && router.any_routable()) {
             RECT client{};
             const HWND active = GetForegroundWindow();
             if (active != views[0].window && active != views[1].window) {
@@ -209,7 +209,7 @@ public:
             if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F8) { router.reset(); update_gate(); invalidate(); return; }
             if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F7) { retry_unavailable(); return; }
             if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F9) { disconnect_device(input.header.hDevice); return; }
-            if (router.ready() && !(key.Flags & RI_KEY_BREAK) && key.VKey != VK_F6 &&
+            if (router.any_routable() && !(key.Flags & RI_KEY_BREAK) && key.VKey != VK_F6 &&
                 (!input.header.hDevice || key.MakeCode == 0 || key.MakeCode >= 255 || key.VKey == 255 ||
                 (router.seat(0).keyboard != input.header.hDevice && router.seat(1).keyboard != input.header.hDevice)))
                 ++unassigned_keys;
@@ -259,8 +259,11 @@ public:
             const SeatInput& seat = router.seat(view.index);
             status += L"\nTeclado: " + std::wstring(seat.keyboard ? L"associado" : L"aguardando F6") +
                 L" | Mouse: " + std::wstring(seat.mouse ? L"associado" : L"aguardando clique direito");
-            status += capture ? L"\nComplete os dois pares: F6 em cada teclado; clique direito em cada mouse." :
-                L"\nAtive um painel para associar. São necessários dois teclados e dois mouses.";
+            if (capture && router.any_routable())
+                status += router.routable(view.index) ? L"\nEste posto continua ativo. Reassocie o dispositivo ausente no outro posto." :
+                    L"\nReassocie o dispositivo ausente: F6 no teclado ou clique direito no mouse.";
+            else status += capture ? L"\nComplete os dois pares: F6 em cada teclado; clique direito em cada mouse." :
+                    L"\nAtive um painel para associar. São necessários dois teclados e dois mouses.";
         }
         else status += capture ? L"\nF7 reconecta; F8 libera; F9 desconecta seu posto; F12 encerra os dois." :
             L"\nEntrada pausada. Ative uma destas janelas para continuar; F12 encerra.";
@@ -278,7 +281,7 @@ public:
                 state_text(transports[view.index]->state());
             DrawTextW(dc, unavailable, -1, &image, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
         }
-        if (router.ready() && capture && router.seat(view.index).enabled) {
+        if (capture && router.routable(view.index)) {
             const SeatInput& seat = router.seat(view.index);
             const int x = image.left + static_cast<int>(static_cast<long long>(seat.x) *
                 (image.right - image.left) / seat.width);
@@ -343,9 +346,9 @@ public:
         std::cout << "DISCONNECT seat=" << index + 1 << std::endl;
     }
     void disconnect_device(HANDLE device) {
-        if (smoke || synthetic || closing || !foreground() || !device || !router.ready()) return;
+        if (smoke || synthetic || closing || !foreground() || !device) return;
         for (unsigned i = 0; i < transports.size(); ++i)
-            if (router.seat(i).keyboard == device && connected(i)) { disconnect(i); break; }
+            if (router.routable(i) && router.seat(i).keyboard == device && connected(i)) { disconnect(i); break; }
         update_gate();
         invalidate();
     }
