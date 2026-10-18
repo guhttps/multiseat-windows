@@ -190,8 +190,8 @@ function Assert-SdkReceipt {
 }
 
 $pins = @(
-    [PSCustomObject][ordered]@{ name = 'Perl'; url = 'https://github.com/Perl/perl5.git'; tag = 'v5.42.1'
-        tag_object = '66862f2d39ee94d28d3fe822550c5b4030444c10'; commit = '785bc8fe8ed6009ff0d6e657fe0aba7155188873'; directory = 'perl-source' },
+    [PSCustomObject][ordered]@{ name = 'Perl'; url = 'https://github.com/Perl/perl5.git'; tag = 'v5.44.0'
+        tag_object = '51698a37efd1d012d1c148bc93adfda0147ae6e1'; commit = 'e634cc838fb1785dfafb5d13b52807ea16b5c52c'; directory = 'perl-source' },
     [PSCustomObject][ordered]@{ name = 'OpenSSL'; url = 'https://github.com/openssl/openssl.git'; tag = 'openssl-3.5.9'
         tag_object = 'd0ca66a1abe52545f14eca635c648932fcde5615'; commit = '45e844fa2a14ec92d146bd8f5778ac130b6625fb'; directory = 'openssl-source' },
     [PSCustomObject][ordered]@{ name = 'zlib'; url = 'https://github.com/madler/zlib.git'; tag = 'v1.3.2'

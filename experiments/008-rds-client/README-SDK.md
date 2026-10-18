@@ -13,7 +13,7 @@ O destino local é `build/rds-sdk`; fontes, builds, Perl e logs ficam somente ne
 
 | Fonte oficial | Tag | Commit fixado |
 | --- | --- | --- |
-| [Perl/perl5](https://github.com/Perl/perl5) | `v5.42.1` | `785bc8fe8ed6009ff0d6e657fe0aba7155188873` |
+| [Perl/perl5](https://github.com/Perl/perl5) | `v5.44.0` | `e634cc838fb1785dfafb5d13b52807ea16b5c52c` |
 | [openssl/openssl](https://github.com/openssl/openssl) | `openssl-3.5.9` | `45e844fa2a14ec92d146bd8f5778ac130b6625fb` |
 | [madler/zlib](https://github.com/madler/zlib) | `v1.3.2` | `da607da739fa6047df13e66a2af6b8bec7c2a498` |
 | [FreeRDP/FreeRDP](https://github.com/FreeRDP/FreeRDP) | `3.32.2` | `97eff6ddfbbfaa8e42a126d362686bd001ff8bdc` |
@@ -24,6 +24,8 @@ FreeRDP/WinPR e OpenSSL são bibliotecas compartilhadas com CRT `/MD`; zlib é u
 
 Uma árvore existente só é reutilizada com recibo completo da mesma receita e correspondência de todos os arquivos/hash do prefixo. Árvores desconhecidas, incompletas, adulteradas ou com arquivos extras são recusadas. Preserve uma tentativa interrompida para inspeção e use uma árvore nova; o script não apaga builds automaticamente. O console mostra somente etapas. Logs brutos podem conter caminhos da máquina e permanecem privados em `<BuildRoot>/logs`.
 
-As licenças originais são copiadas sem alterações: FreeRDP e OpenSSL usam [Apache-2.0](https://github.com/FreeRDP/FreeRDP/blob/97eff6ddfbbfaa8e42a126d362686bd001ff8bdc/LICENSE), [licença OpenSSL](https://github.com/openssl/openssl/blob/45e844fa2a14ec92d146bd8f5778ac130b6625fb/LICENSE.txt); zlib usa a [licença zlib](https://github.com/madler/zlib/blob/da607da739fa6047df13e66a2af6b8bec7c2a498/LICENSE). Perl oferece as alternativas [GPL](https://github.com/Perl/perl5/blob/785bc8fe8ed6009ff0d6e657fe0aba7155188873/Copying) e [Artistic](https://github.com/Perl/perl5/blob/785bc8fe8ed6009ff0d6e657fe0aba7155188873/Artistic). Esses termos pertencem aos componentes de terceiros e não definem a licença deste projeto nem concedem direitos adicionais sobre Windows/RDS.
+Na revisão de 2026-10-18, o build tool Perl foi atualizado para a [versão estável 5.44.0](https://www.perl.org/get.html). O runtime usa a [release de segurança FreeRDP 3.32.2](https://github.com/FreeRDP/FreeRDP/releases/tag/3.32.2) e a atualização de segurança [OpenSSL 3.5.9 da série 3.5](https://openssl-library.org/news/openssl-3.5-notes/). Isso não é uma auditoria completa de vulnerabilidades; futuras atualizações exigem revisar os avisos oficiais e repetir a construção e os testes, sem mudar pins automaticamente.
+
+As licenças originais são copiadas sem alterações: FreeRDP e OpenSSL usam [Apache-2.0](https://github.com/FreeRDP/FreeRDP/blob/97eff6ddfbbfaa8e42a126d362686bd001ff8bdc/LICENSE), [licença OpenSSL](https://github.com/openssl/openssl/blob/45e844fa2a14ec92d146bd8f5778ac130b6625fb/LICENSE.txt); zlib usa a [licença zlib](https://github.com/madler/zlib/blob/da607da739fa6047df13e66a2af6b8bec7c2a498/LICENSE). Perl oferece as alternativas [GPL](https://github.com/Perl/perl5/blob/e634cc838fb1785dfafb5d13b52807ea16b5c52c/Copying) e [Artistic](https://github.com/Perl/perl5/blob/e634cc838fb1785dfafb5d13b52807ea16b5c52c/Artistic). Esses termos pertencem aos componentes de terceiros e não definem a licença deste projeto nem concedem direitos adicionais sobre Windows/RDS.
 
 Os testes upstream dessas dependências estão desabilitados nesta receita de laboratório. Compilar, ligar e estabelecer conexões são verificações separadas. Não publique o SDK, logs, fontes geradas ou binários locais como assets: esta receita não aprova redistribuição, auditoria completa de dependências, assinatura ou ausência de caminhos privados nos binários.
