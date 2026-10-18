@@ -7,7 +7,7 @@ namespace rds_lab {
 enum class TransportState { Idle, Connecting, Connected, Closed, Failed, CertificateRejected };
 class Transport {
 public:
-    Transport(const Config& config, unsigned seat_index, HWND notify_window);
+    Transport(const Config& config, unsigned seat_index, HWND notify_window, unsigned toggle_states = 0);
     ~Transport();
     Transport(const Transport&) = delete;
     Transport& operator=(const Transport&) = delete;
@@ -17,6 +17,8 @@ public:
     TransportState state() const;
     unsigned error_code() const;
     unsigned frame_count() const;
+    bool input_ready() const;
+    unsigned toggle_states() const;
     std::string diagnostics() const;
     bool draw(HDC dc, const RECT& target);
     static bool library_smoke();

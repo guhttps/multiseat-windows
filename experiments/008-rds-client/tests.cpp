@@ -302,6 +302,50 @@ void router_tests() {
     for (const SeatInput* seat : { &router.seat(0), &router.seat(1) })
         require(!seat->keyboard && !seat->mouse);
 }
+void router_availability_tests() {
+    std::vector<std::pair<unsigned, InputEvent>> events;
+    InputRouter router({ std::pair{1280U, 720U}, std::pair{1280U, 720U} },
+        [&](unsigned seat, const InputEvent& event) { events.emplace_back(seat, event); });
+    const HANDLE ka = reinterpret_cast<HANDLE>(1), kb = reinterpret_cast<HANDLE>(2);
+    const HANDLE ma = reinterpret_cast<HANDLE>(3), mb = reinterpret_cast<HANDLE>(4);
+    router.keyboard(ka, key(VK_F6, 0x40), true);
+    router.keyboard(kb, key(VK_F6, 0x40), true);
+    RAWMOUSE pair{}; pair.usButtonFlags = RI_MOUSE_RIGHT_BUTTON_DOWN;
+    router.mouse(ma, pair, true); router.mouse(mb, pair, true);
+    require(router.ready() && events.empty());
+    router.keyboard(ka, key('A', 0x1E), true);
+    router.keyboard(kb, key('B', 0x30), true);
+    RAWMOUSE left{}; left.usButtonFlags = RI_MOUSE_LEFT_BUTTON_DOWN;
+    router.mouse(ma, left, true); router.mouse(mb, left, true);
+    require(events.size() == 4);
+    router.set_enabled(0, false);
+    require(events.size() == 6 && events[4].first == 0 && events[5].first == 0 &&
+        !events[4].second.down && !events[5].second.down);
+    require(router.seat(0).held_keys.empty() && router.seat(0).held_buttons == 0 &&
+        router.seat(1).held_keys.contains(0x30) && router.seat(1).held_buttons == 1);
+    const size_t paused = events.size();
+    router.set_enabled(0, false); // Idempotent; no duplicate releases.
+    router.keyboard(ka, key('A', 0x1E), true);
+    router.mouse(ma, left, true);
+    require(events.size() == paused);
+    RAWMOUSE movement{}; movement.lLastX = 7;
+    router.mouse(mb, movement, true);
+    require(events.size() == paused + 1 && events.back().first == 1 &&
+        events.back().second.kind == EventKind::Move);
+    const size_t before_reconnect = events.size();
+    router.set_enabled(0, true);
+    router.keyboard(ka, key('A', 0x1E, RI_KEY_BREAK), true);
+    router.keyboard(ka, key(VK_F7, 0x41), true);
+    router.keyboard(ka, key(VK_F9, 0x43), true);
+    require(events.size() == before_reconnect); // No replay or local control forwarding.
+    router.keyboard(ka, key('A', 0x1E), true);
+    require(events.back().first == 0 && events.back().second.down && !events.back().second.repeat);
+    router.keyboard(kb, key('B', 0x30, RI_KEY_BREAK), true);
+    require(events.back().first == 1 && !events.back().second.down);
+    router.release_all();
+    require(router.seat(0).held_keys.empty() && router.seat(1).held_keys.empty() &&
+        router.seat(0).held_buttons == 0 && router.seat(1).held_buttons == 0);
+}
 }
 bool run_self_tests() {
     try {
@@ -313,6 +357,7 @@ bool run_self_tests() {
         ssl_diagnostic_tests(); std::cout << "PASS: bounded TLS diagnostic parser returns numeric codes only.\n";
         certificate_tests(); std::cout << "PASS: ephemeral certificate SHA-256 leaf pin and mismatch rejection.\n";
         router_tests(); std::cout << "PASS: per-device routing, clamping, repeats and release/reset/removal.\n";
+        router_availability_tests(); std::cout << "PASS: failed-seat input release, healthy-seat continuity and no reconnect replay.\n";
         cursor_tests(); std::cout << "PASS: inert cursor capture, cleanup, failure and foreign-owner preservation.\n";
         std::cout << "Offline tests only; no RDP connection, input registration, trust-store or host configuration changes.\n";
         return true;

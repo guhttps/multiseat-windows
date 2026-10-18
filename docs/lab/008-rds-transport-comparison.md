@@ -1,6 +1,6 @@
 # Laboratório 008 — duas sessões reais por RDS em VM separada
 
-Estado em 2026-10-18: duas sessões autenticadas e transporte sintético até dois Notepads externos validados. O usuário confirmou digitação com os periféricos físicos e manutenção do alvo ao trocar aplicativos no outro posto. Recuperação e medição quantitativa continuam pendentes. Este laboratório é auxiliar e não aprova o motor nativo nem duas instâncias de LoL. A decisão está no [ADR 0008](../architecture/0008-backend-code-review.md).
+Estado em 2026-10-18: duas sessões autenticadas, transporte sintético até dois Notepads externos e ciclo sintético de desconexão/reconexão validados. O usuário confirmou digitação com os periféricos físicos e manutenção do alvo ao trocar aplicativos no outro posto. Recuperação física e medição quantitativa continuam pendentes. Este laboratório é auxiliar e não aprova o motor nativo nem duas instâncias de LoL. A decisão está no [ADR 0008](../architecture/0008-backend-code-review.md).
 
 ## Escopo e ambiente
 
@@ -37,7 +37,8 @@ Administração do convidado por [PowerShell Direct](https://learn.microsoft.com
 | Ponteiros dos dois mouses no frontend | Miras separadas confirmadas pelo usuário; captura e liberação do cursor compartilhado observadas em runtime |
 | Digitação com os teclados físicos | Confirmada visualmente pelo usuário; contadores registraram encaminhamento nos dois postos sem teclas sem rota. Conferência automatizada dos textos exatos ainda pendente |
 | Troca de aplicativo enquanto o outro posto mantém digitação | Confirmada pelo usuário nos dois sentidos; conferência qualitativa, sem a contagem quantitativa de P02 |
-| Recuperação de falha, hotplug, bloqueio e UAC | Não observado |
+| Desconexão e reconexão do transporte de um posto | Passou em ciclo sintético: o outro recebeu texto durante a desconexão; os mesmos aplicativos e sessões foram preservados após reconectar; encerramento com código zero |
+| Recuperação com periféricos físicos, hotplug, bloqueio e UAC | Em validação; o ciclo sintético não aprova esses cenários |
 
 Relatórios brutos, endereços, SIDs, certificados, identificadores e credenciais ficam somente em `docs/lab/results/` e `build/`, ignorados pelo Git. A evidência pública deve limitar-se a procedimento, resultado, limitações e booleanos revisados, sem anexar os arquivos brutos ou capturas do desktop pessoal.
 
@@ -55,9 +56,17 @@ O frontend usa buffer de pintura por janela e mostra o progresso de associação
 
 Após o relato de que os dois mouses moviam o cursor principal do host, o modo físico passou a prender e ocultar esse cursor durante a captura do frontend. O usuário confirmou movimento separado das miras; uma coleta somente de leitura também observou a captura e sua liberação com o cliente ainda aberto e stderr vazio. As fixtures inertes verificaram falhas de aquisição/liberação, destruição e preservação de uma restrição mais recente de outro aplicativo. São miras do frontend; dois cursores independentes do sistema Windows continuam fora do resultado demonstrado.
 
-Na interação física posterior, o usuário confirmou que a digitação funcionou e esclareceu que as letras repetidas foram deliberadas. Os contadores privados registraram teclas encaminhadas para os dois contextos e nenhuma tecla sem rota. Em seguida, o usuário confirmou manutenção da digitação no posto correto ao alternar Notepad e Explorador no outro posto, nos dois sentidos. O resultado é qualitativo: a contagem de eventos, estabilidade e recuperação continuam pendentes. A prova automatizada de texto exato permanece separada. O observador passou a fornecer também uma contagem de tamanho limitada, para acompanhar atividade manual sem registrar conteúdo digitado; a atualização desse observador ainda exige implantação e conferência no guest.
+Na interação física posterior, o usuário confirmou que a digitação funcionou e esclareceu que as letras repetidas foram deliberadas. Os contadores privados registraram teclas encaminhadas para os dois contextos e nenhuma tecla sem rota. Em seguida, o usuário confirmou manutenção da digitação no posto correto ao alternar Notepad e Explorador no outro posto, nos dois sentidos. O resultado é qualitativo: a contagem de eventos, estabilidade e recuperação física continuam pendentes. A prova automatizada de texto exato permanece separada. O observador passou a fornecer também uma contagem de tamanho limitada, para acompanhar atividade manual sem registrar conteúdo digitado; essa atualização foi instalada somente no guest e as contagens esperadas foram conferidas nos relatórios privados.
 
 Para associar os periféricos, ative primeiro um painel pela barra de título; depois pressione F6 nos dois teclados e dê clique direito com cada mouse dentro do painel. A associação do segundo mouse completou após essa sequência. A captura pausa ao voltar para outro aplicativo do host. F8 libera o cursor e reinicia as associações.
+
+## Ciclo de recuperação do transporte
+
+O cliente mantém um prazo e estado de entrada por conexão. Uma falha deixa o painel correspondente indisponível, enquanto o outro transporte continua ativo; F7 tenta reconectar somente os indisponíveis. Com os quatro periféricos associados, F9 desconecta o posto daquele teclado. As verificações offline cobrem liberação apenas das teclas e botões do posto suspenso, preservação das entradas mantidas pelo outro e ausência de reprodução de entrada antiga após reativar.
+
+A prova executada com `--transport-check --unattended-fixtures --recovery-cycle` manteve Raw Input desativado. O coletor exigiu dois editores vazios e com propriedade validada antes do envio. Com o posto 1 desconectado, confirmou a sessão 2 ativa e sua fixture correta, enquanto o documento do posto 1 permaneceu vazio. Depois da reconexão, revalidou o editor do posto 1 antes das teclas e confirmou os dois textos exatos, sem fixture cruzada, nos mesmos processos, contas e IDs de sessão do preparo. O cliente encerrou com código zero e stderr vazio.
+
+As tentativas iniciais reconectaram o transporte mas não entregaram a fixture imediata ao editor do posto 1. A prontidão de protocolo e o tratamento da sincronização de foco, sozinhos, não resolveram essa observação. O ciclo passou após separar o clique de ativação e as teclas, com uma nova conferência do editor entre essas etapas. Esse resultado é do teste sintético de transporte; recuperação física, perda de rede, encerramento independente de janelas, hotplug e desktops de segurança continuam exigindo provas próprias.
 
 ## Critério de conclusão
 

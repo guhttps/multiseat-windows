@@ -47,6 +47,8 @@ struct Transport::Impl {
     HANDLE input_event = nullptr;
     std::thread worker;
     std::atomic<bool> stopping{ false };
+    std::atomic<bool> ready_for_input{ false };
+    std::atomic<unsigned> toggles{ 0 }, focus_syncs{ 0 };
     std::atomic<TransportState> status{ TransportState::Idle };
     std::atomic<unsigned> last_error{ 0 };
     std::atomic<unsigned> frames{ 0 };
@@ -63,13 +65,14 @@ struct Transport::Impl {
     std::vector<BYTE> frame;
     int frame_width = 0, frame_height = 0;
     bool pin_verified = false; // connection thread only
-    explicit Impl(const Config& source, unsigned seat, HWND destination)
-        : config(source), index(seat), window(destination) {
+    explicit Impl(const Config& source, unsigned seat, HWND destination, unsigned initial_toggles)
+        : config(source), index(seat), window(destination), toggles(initial_toggles) {
         input_event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
         if (!input_event) throw std::runtime_error("Cannot create transport wake event.");
     }
     ~Impl() { if (input_event) CloseHandle(input_event); }
     void state(TransportState next) {
+        if (next != TransportState::Connected) ready_for_input = false;
         status = next;
         if (window) PostMessageW(window, state_message, 0, 0);
     }
@@ -228,12 +231,26 @@ struct Transport::Impl {
         if (!set) throw std::runtime_error("RDP credential setting rejected.");
     }
     bool send(rdpInput* input, const InputEvent& event) {
+        // FreeRDP can return TRUE while skipping input before ACTIVE or while
+        // suspended. Fail this transport rather than silently losing/replaying it.
+        if (!freerdp_is_active_state(input->context) ||
+            freerdp_settings_get_bool(input->context->settings, FreeRDP_SuspendInput)) return false;
         switch (event.kind) {
         case EventKind::Key: {
             UINT16 flags = static_cast<UINT16>(event.down ? (event.repeat ? KBD_FLAGS_DOWN : 0) : KBD_FLAGS_RELEASE);
             if (event.code & 0x100) flags |= KBD_FLAGS_EXTENDED;
             if (event.code & 0x200) flags |= KBD_FLAGS_EXTENDED1;
-            return freerdp_input_send_keyboard_event(input, flags, static_cast<UINT8>(event.code & 0xFF)) != FALSE;
+            if (!freerdp_input_send_keyboard_event(input, flags, static_cast<UINT8>(event.code & 0xFF))) return false;
+            if (event.down && !event.repeat) {
+                // Track only this seat's lock flags for protocol resynchronization;
+                // never copy the shared host keyboard state into both sessions.
+                unsigned mask = 0;
+                if (event.code == 0x3A) mask = KBD_SYNC_CAPS_LOCK;
+                else if (event.code == 0x45) mask = KBD_SYNC_NUM_LOCK;
+                else if (event.code == 0x46) mask = KBD_SYNC_SCROLL_LOCK;
+                if (mask) toggles.fetch_xor(mask);
+            }
+            return true;
         }
         case EventKind::Pause: return freerdp_input_send_keyboard_pause_event(input) != FALSE;
         case EventKind::Move:
@@ -299,13 +316,27 @@ struct Transport::Impl {
                 if (count == 0 || count >= MAXIMUM_WAIT_OBJECTS) break;
                 handles[count++] = input_event;
                 if (WaitForMultipleObjects(count, handles, FALSE, 50) == WAIT_FAILED) break;
+                // Process activation/deactivation before deciding whether queued
+                // input is deliverable. Frame reception alone does not prove it.
+                if (!stopping && !freerdp_check_event_handles(instance->context)) break;
+                const bool active = freerdp_is_active_state(instance->context) &&
+                    !freerdp_settings_get_bool(instance->context->settings, FreeRDP_SuspendInput);
+                if (active && freerdp_focus_required(instance)) {
+                    const auto flags = static_cast<UINT16>(toggles.load());
+                    // Match the upstream Windows client's requested focus handshake.
+                    if (!freerdp_input_send_focus_in_event(instance->context->input, flags) ||
+                        !freerdp_input_send_focus_in_event(instance->context->input, flags))
+                        throw std::runtime_error("RDP focus synchronization failed.");
+                    ++focus_syncs;
+                }
+                if (ready_for_input.exchange(active) != active && window)
+                    PostMessageW(window, state_message, 0, 0);
                 std::deque<InputEvent> events;
                 { std::lock_guard lock(queue_mutex); events.swap(queue); }
                 for (const InputEvent& event : events) if (!send(instance->context->input, event))
                     throw std::runtime_error("RDP input send failed.");
                 // Deliver queued release events before a locally requested disconnect.
                 if (stopping) break;
-                if (!freerdp_check_event_handles(instance->context)) break;
             }
             if (!stopping) last_error = freerdp_get_last_error(instance->context);
             state(TransportState::Closed);
@@ -332,8 +363,8 @@ struct Transport::Impl {
         current_ssl_signals = nullptr;
     }
 };
-Transport::Transport(const Config& config, unsigned seat_index, HWND window)
-    : impl_(std::make_unique<Impl>(config, seat_index, window)) {
+Transport::Transport(const Config& config, unsigned seat_index, HWND window, unsigned toggle_states)
+    : impl_(std::make_unique<Impl>(config, seat_index, window, toggle_states)) {
     if (seat_index >= config.seats.size()) throw std::runtime_error("Invalid seat index.");
 }
 Transport::~Transport() { stop(); }
@@ -343,6 +374,7 @@ void Transport::start() {
     impl_->worker = std::thread([self = impl_.get()] { self->run(); });
 }
 void Transport::stop() {
+    impl_->ready_for_input = false;
     impl_->stopping = true;
     SetEvent(impl_->input_event);
     {
@@ -353,7 +385,7 @@ void Transport::stop() {
     if (impl_->worker.joinable()) impl_->worker.join();
 }
 bool Transport::enqueue(const InputEvent& event) {
-    if (impl_->status != TransportState::Connected || impl_->stopping) return false;
+    if (impl_->status != TransportState::Connected || !impl_->ready_for_input || impl_->stopping) return false;
     { std::lock_guard lock(impl_->queue_mutex);
         if (impl_->queue.size() >= 4096) { impl_->stopping = true; SetEvent(impl_->input_event); return false; }
         impl_->queue.push_back(event);
@@ -363,6 +395,8 @@ bool Transport::enqueue(const InputEvent& event) {
 TransportState Transport::state() const { return impl_->status.load(); }
 unsigned Transport::error_code() const { return impl_->last_error.load(); }
 unsigned Transport::frame_count() const { return impl_->frames.load(); }
+bool Transport::input_ready() const { return impl_->ready_for_input.load(); }
+unsigned Transport::toggle_states() const { return impl_->toggles.load(); }
 std::string Transport::diagnostics() const {
     return "stage=" + std::to_string(impl_->stage.load()) +
         " cert_calls=" + std::to_string(impl_->certificate_calls.load()) +
@@ -374,7 +408,9 @@ std::string Transport::diagnostics() const {
         " nla=" + std::to_string(impl_->nla_enabled.load()) +
         " ssl_errors=" + std::to_string(impl_->ssl_signals.count.load()) +
         " ssl_code=" + std::to_string(impl_->ssl_signals.code.load()) +
-        " ssl_alert=" + std::to_string(impl_->ssl_signals.alert.load());
+        " ssl_alert=" + std::to_string(impl_->ssl_signals.alert.load()) +
+        " input_ready=" + std::to_string(impl_->ready_for_input.load() ? 1 : 0) +
+        " focus_syncs=" + std::to_string(impl_->focus_syncs.load());
 }
 bool Transport::enable_safe_ssl_diagnostics() {
     wLog* root = WLog_GetRoot();

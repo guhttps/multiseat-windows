@@ -82,8 +82,13 @@ const wchar_t* state_text(TransportState state) {
     default: return L"Falha no transporte RDP; consulte o código numérico no terminal";
     }
 }
+bool terminal_state(TransportState state) {
+    return state == TransportState::Closed || state == TransportState::Failed ||
+        state == TransportState::CertificateRejected;
+}
 class Application {
 public:
+    enum class RecoveryPhase { Initial, PeerOffline, Reconnecting, PreparingEditor, Finished };
     Config config;
     std::array<View, 2> views{};
     std::array<std::unique_ptr<Transport>, 2> transports;
@@ -91,21 +96,25 @@ public:
     CursorLease cursor;
     std::array<ULONGLONG, 2> routed_keys{}, routed_clicks{};
     ULONGLONG unassigned_keys{};
+    std::array<bool, 2> send_failed{}, timed_out{}, failure_reported{};
+    std::array<ULONGLONG, 2> attempt_started{};
     bool smoke = false, synthetic = false, unattended = false, closing = false, registered = false, capture = false;
-    bool sent_synthetic = false, send_failed = false, waiting_foreground_reported = false;
+    bool recovery = false;
+    RecoveryPhase recovery_phase = RecoveryPhase::Initial;
+    ULONGLONG recovery_phase_since = 0;
+    bool sent_synthetic = false, waiting_foreground_reported = false;
     ULONGLONG started = 0, connected_since = 0, synthetic_sent_at = 0;
     std::array<std::string, 2> last_progress;
-    bool initial_frames_ready = false;
     int result = 0;
-    Application(Config source, bool smoke_mode, bool synthetic_mode, bool unattended_mode = false)
+    Application(Config source, bool smoke_mode, bool synthetic_mode, bool unattended_mode = false, bool recovery_mode = false)
         : config(std::move(source)), router(sizes(config), [this](unsigned seat, const InputEvent& event) {
             if (transports[seat]) {
                 if (transports[seat]->enqueue(event)) {
                     if (event.kind == EventKind::Key && event.down) ++routed_keys[seat];
                     if (event.kind == EventKind::Button && event.code == 0 && event.down) ++routed_clicks[seat];
-                } else if (transports[seat]->state() == TransportState::Connected) send_failed = true;
+                } else if (transports[seat]->state() == TransportState::Connected) send_failed[seat] = true;
             }
-        }), smoke(smoke_mode), synthetic(synthetic_mode), unattended(unattended_mode) {}
+        }), smoke(smoke_mode), synthetic(synthetic_mode), unattended(unattended_mode), recovery(recovery_mode) {}
     ~Application() {
         cursor.release();
         router.release_all();
@@ -119,11 +128,12 @@ public:
             !IsIconic(views[0].window) && !IsIconic(views[1].window) &&
             (active == views[0].window || active == views[1].window) && input_desktop_is_default();
     }
-    bool both_connected() const {
-        return transports[0] && transports[1] && transports[0]->state() == TransportState::Connected &&
-            transports[1]->state() == TransportState::Connected &&
-            transports[0]->frame_count() > 0 && transports[1]->frame_count() > 0;
+    bool connected(unsigned index) const {
+        return transports[index] && transports[index]->state() == TransportState::Connected &&
+            transports[index]->frame_count() > 0 && transports[index]->input_ready();
     }
+    bool both_connected() const { return connected(0) && connected(1); }
+    bool any_connected() const { return connected(0) || connected(1); }
     void report_progress(bool force) {
         if (smoke) return;
         for (unsigned i = 0; i < transports.size(); ++i) {
@@ -153,8 +163,9 @@ public:
     }
     void update_gate() {
         if (smoke || synthetic || closing) return;
-        const bool enabled = foreground() && both_connected();
+        const bool enabled = foreground() && any_connected();
         if (!enabled && capture) { router.release_all(); report_input_counts(); }
+        for (unsigned i = 0; i < transports.size(); ++i) router.set_enabled(i, enabled && connected(i));
         capture = enabled;
         if (enabled && !registered) {
             RAWINPUTDEVICE devices[] = {
@@ -187,7 +198,7 @@ public:
     }
     void invalidate() { for (const View& view : views) InvalidateRect(view.window, nullptr, FALSE); }
     void raw(HRAWINPUT handle) {
-        if (!capture || !foreground() || !both_connected()) { update_gate(); return; }
+        if (!capture || !foreground() || !any_connected()) { update_gate(); return; }
         RAWINPUT input{};
         UINT size = sizeof(input);
         const UINT copied = GetRawInputData(handle, RID_INPUT, &input, &size, sizeof(RAWINPUTHEADER));
@@ -196,6 +207,8 @@ public:
             const RAWKEYBOARD& key = input.data.keyboard;
             if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F12) { close(0); return; }
             if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F8) { router.reset(); update_gate(); invalidate(); return; }
+            if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F7) { retry_unavailable(); return; }
+            if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F9) { disconnect_device(input.header.hDevice); return; }
             if (router.ready() && !(key.Flags & RI_KEY_BREAK) && key.VKey != VK_F6 &&
                 (!input.header.hDevice || key.MakeCode == 0 || key.MakeCode >= 255 || key.VKey == 255 ||
                 (router.seat(0).keyboard != input.header.hDevice && router.seat(1).keyboard != input.header.hDevice)))
@@ -230,13 +243,17 @@ public:
         HFONT font = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
         const HGDIOBJ previous = SelectObject(dc, font);
         std::wstring status = L"LABORATÓRIO WINDOWS SERVER — POSTO " + std::to_wstring(view.index + 1) +
-            L"\n" + (smoke ? L"Smoke local: nenhuma conexão ou captura" : state_text(transports[view.index]->state()));
+            L"\n" + (smoke ? L"Smoke local: nenhuma conexão ou captura" :
+                timed_out[view.index] ? L"Prazo de conexão/frame excedido" : state_text(transports[view.index]->state()));
+        if (!smoke && !synthetic && (timed_out[view.index] || terminal_state(transports[view.index]->state())))
+            status += L"; F7 reconecta este posto";
         if (synthetic) {
             status += L"\nTeste sintético: não demonstra isolamento dos periféricos físicos.";
             if (unattended)
                 status += L"\nAutoteste: fixtures fixas na VM; o foco do host não é exigido.";
             else if (waiting_foreground_reported && !sent_synthetic)
                 status += L"\nClique em um destes painéis para permitir o envio do teste.";
+            if (recovery) status += L"\nRecuperação sintética: desconecta e reconecta somente o posto 1.";
         }
         else if (!router.ready()) {
             const SeatInput& seat = router.seat(view.index);
@@ -245,7 +262,7 @@ public:
             status += capture ? L"\nComplete os dois pares: F6 em cada teclado; clique direito em cada mouse." :
                 L"\nAtive um painel para associar. São necessários dois teclados e dois mouses.";
         }
-        else status += capture ? L"\nUse as miras vermelhas. Mouse do host preso; F8 libera, F12 encerra." :
+        else status += capture ? L"\nF7 reconecta; F8 libera; F9 desconecta seu posto; F12 encerra os dois." :
             L"\nEntrada pausada. Ative uma destas janelas para continuar; F12 encerra.";
         if (!smoke && !synthetic)
             status += L"\nTeclas encaminhadas: " + std::to_wstring(routed_keys[view.index]) +
@@ -255,8 +272,13 @@ public:
         DrawTextW(dc, status.c_str(), -1, &text, DT_LEFT | DT_NOPREFIX);
         RECT image = surface(client, view.index);
         FillRect(dc, &image, GetSysColorBrush(COLOR_APPWORKSPACE));
-        if (transports[view.index]) transports[view.index]->draw(dc, image);
-        if (router.ready() && capture) {
+        if (connected(view.index)) transports[view.index]->draw(dc, image);
+        else if (!smoke) {
+            const wchar_t* unavailable = timed_out[view.index] ? L"Prazo de conexão excedido; F7 reconecta." :
+                state_text(transports[view.index]->state());
+            DrawTextW(dc, unavailable, -1, &image, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+        }
+        if (router.ready() && capture && router.seat(view.index).enabled) {
             const SeatInput& seat = router.seat(view.index);
             const int x = image.left + static_cast<int>(static_cast<long long>(seat.x) *
                 (image.right - image.left) / seat.width);
@@ -282,41 +304,138 @@ public:
         if (!BitBlt(target, 0, 0, client.right, client.bottom, memory, 0, 0, SRCCOPY))
             throw std::runtime_error("Cannot present the local view paint buffer.");
     }
-    void send_fixture(unsigned index) {
+    void click_fixture_editor(unsigned index) {
         auto send = [this, index](InputEvent event) {
             if (!transports[index]->enqueue(event)) throw std::runtime_error("Synthetic RDP send failed.");
         };
         send({EventKind::Move, 0, false, false, false, 250, 180});
         send({EventKind::Button, 0, true, false, false, 250, 180});
         send({EventKind::Button, 0, false, false, false, 250, 180});
+    }
+    void send_fixture_keys(unsigned index) {
+        auto send = [this, index](InputEvent event) {
+            if (!transports[index]->enqueue(event)) throw std::runtime_error("Synthetic RDP send failed.");
+        };
         constexpr unsigned keys[] = { 0x13, 0x20, 0x19, 0x0C, 0x1F, 0x12, 0x1E, 0x14, 0x0C };
         for (unsigned code : keys) { send({EventKind::Key, code, true}); send({EventKind::Key, code, false}); }
         const unsigned ending = index == 0 ? 0x1E : 0x30;
         send({EventKind::Key, ending, true}); send({EventKind::Key, ending, false});
+    }
+    void send_fixture(unsigned index) {
+        click_fixture_editor(index);
+        send_fixture_keys(index);
+    }
+    void restart(unsigned index) {
+        router.set_enabled(index, false);
+        transports[index]->stop();
+        const unsigned toggles = transports[index]->toggle_states();
+        transports[index] = std::make_unique<Transport>(config, index, views[index].window, toggles);
+        send_failed[index] = timed_out[index] = failure_reported[index] = false;
+        last_progress[index].clear();
+        attempt_started[index] = GetTickCount64();
+        transports[index]->start();
+        std::cout << "RETRY seat=" << index + 1 << std::endl;
+    }
+    void disconnect(unsigned index) {
+        router.set_enabled(index, false);
+        transports[index]->stop();
+        send_failed[index] = false;
+        std::cout << "DISCONNECT seat=" << index + 1 << std::endl;
+    }
+    void disconnect_device(HANDLE device) {
+        if (smoke || synthetic || closing || !foreground() || !device || !router.ready()) return;
+        for (unsigned i = 0; i < transports.size(); ++i)
+            if (router.seat(i).keyboard == device && connected(i)) { disconnect(i); break; }
+        update_gate();
+        invalidate();
+    }
+    void retry_unavailable() {
+        if (smoke || synthetic || closing || !foreground()) return;
+        for (unsigned i = 0; i < transports.size(); ++i)
+            if (timed_out[i] || terminal_state(transports[i]->state())) restart(i);
+        update_gate();
+        invalidate();
+    }
+    void tick_recovery(ULONGLONG now) {
+        switch (recovery_phase) {
+        case RecoveryPhase::Initial:
+            if (now - started >= 120000) throw std::runtime_error("Recovery preparation timed out.");
+            if (both_connected() && !connected_since) connected_since = now;
+            if (connected_since && now - connected_since >= 30000) {
+                // The external controller must validate both empty owned
+                // editors during this delay. This mode never registers Raw Input.
+                recovery_phase = RecoveryPhase::PeerOffline;
+                recovery_phase_since = now;
+                disconnect(0);
+                if (!connected(1)) throw std::runtime_error("Recovery peer was lost.");
+                send_fixture(1);
+                recovery_phase_since = GetTickCount64();
+                std::cout << "RECOVERY: seat1 disconnected; seat2 fixture sent; guest observation required." << std::endl;
+            }
+            break;
+        case RecoveryPhase::PeerOffline:
+            if (now - recovery_phase_since >= 20000) {
+                restart(0);
+                recovery_phase = RecoveryPhase::Reconnecting;
+                recovery_phase_since = GetTickCount64();
+                std::cout << "RECOVERY: reconnecting seat1; seat2 retained." << std::endl;
+            }
+            break;
+        case RecoveryPhase::Reconnecting:
+            if (now - recovery_phase_since >= 60000) throw std::runtime_error("Recovery reconnection timed out.");
+            if (both_connected()) {
+                click_fixture_editor(0);
+                recovery_phase = RecoveryPhase::PreparingEditor;
+                recovery_phase_since = now;
+                std::cout << "RECOVERY: seat1 reconnected; editor preparation; guest preflight required." << std::endl;
+            }
+            break;
+        case RecoveryPhase::PreparingEditor:
+            // Let the GUI process activation independently of the RDP handshake.
+            // The external controller must revalidate the empty owned editor
+            // during this window and abort if its focus or identity is wrong.
+            if (now - recovery_phase_since >= 10000) {
+                if (!both_connected()) throw std::runtime_error("Recovery input readiness was lost.");
+                send_fixture_keys(0);
+                sent_synthetic = true;
+                synthetic_sent_at = now;
+                recovery_phase = RecoveryPhase::Finished;
+                std::cout << "RECOVERY: seat1 fixture sent after reconnect; guest observation required." << std::endl;
+            }
+            break;
+        case RecoveryPhase::Finished:
+            if (now - synthetic_sent_at >= 45000) close(0);
+            break;
+        }
     }
     void tick() {
         if (closing) return;
         const ULONGLONG now = GetTickCount64();
         if (smoke) { if (now - started >= 200) close(0); return; }
         report_progress(false);
-        if (both_connected()) initial_frames_ready = true;
-        // One fixed deadline for the initial pair of connections and first
-        // frames. A partly connected peer cannot restart or extend it.
-        if (!synthetic && !initial_frames_ready && now - started >= 60000) {
-            std::cerr << "FAIL: initial RDP connection/frame deadline (60 seconds)." << std::endl;
-            close(1); return;
-        }
-        update_gate();
-        if (send_failed) throw std::runtime_error("RDP input queue failed.");
         for (unsigned i = 0; i < transports.size(); ++i) {
+            // Each connection owns its deadline and input state. A failed peer
+            // cannot release the healthy peer's held keys or stop its worker.
+            if (!synthetic && (send_failed[i] || (!connected(i) && !terminal_state(transports[i]->state()) &&
+                now - attempt_started[i] >= 60000))) {
+                router.set_enabled(i, false);
+                timed_out[i] = !send_failed[i];
+                transports[i]->stop();
+                send_failed[i] = false;
+            }
             const TransportState state = transports[i]->state();
-            if (state == TransportState::Failed || state == TransportState::CertificateRejected ||
-                state == TransportState::Closed) {
-                std::cerr << "RDP seat " << i + 1 << " stopped; state=" << static_cast<int>(state)
-                    << " code=" << transports[i]->error_code() << " " << transports[i]->diagnostics() << std::endl;
-                close(1); return;
+            if (terminal_state(state)) {
+                if (!failure_reported[i]) {
+                    failure_reported[i] = true;
+                    std::cout << "RDP seat " << i + 1 << " unavailable; state=" << static_cast<int>(state)
+                        << " code=" << transports[i]->error_code() << " " << transports[i]->diagnostics() << std::endl;
+                }
+                const bool expected_disconnect = recovery && i == 0 && recovery_phase == RecoveryPhase::PeerOffline;
+                if (synthetic && !expected_disconnect) { close(1); return; }
             }
         }
+        update_gate();
+        if (recovery) { tick_recovery(now); invalidate(); return; }
         if (synthetic) {
             if (!sent_synthetic && now - started >= 120000)
                 throw std::runtime_error("Synthetic transport check timed out.");
@@ -392,7 +511,10 @@ public:
             ShowWindow(views[1].window, SW_SHOWNOACTIVATE);
             ShowWindow(views[0].window, SW_SHOW);
             SetForegroundWindow(views[0].window);
-            for (auto& transport : transports) transport->start();
+            for (unsigned i = 0; i < transports.size(); ++i) {
+                attempt_started[i] = GetTickCount64();
+                transports[i]->start();
+            }
         }
         MSG message{};
         int status = 0;
@@ -426,7 +548,10 @@ public:
                 return 0;
             case WM_TIMER: app.tick(); return 0;
             case WM_ACTIVATEAPP: app.update_gate(); app.invalidate(); return 0;
-            case WM_KEYDOWN: if (wparam == VK_F12) app.close(0); return 0;
+            case WM_KEYDOWN:
+                if (wparam == VK_F12) app.close(0);
+                else if (wparam == VK_F7) app.retry_unavailable();
+                return 0;
             case WM_CLOSE: app.close(0); return 0;
             case WM_SETCURSOR:
                 if (LOWORD(lparam) == HTCLIENT) {
@@ -471,7 +596,7 @@ int wmain(int argc, wchar_t** argv) {
         // This scope outlives every Application/Transport created below, so
         // worker threads and RDP contexts are gone before WSACleanup runs.
         SocketRuntime sockets;
-        bool smoke = false, self_test = false, synthetic = false, check_config = false, unattended = false;
+        bool smoke = false, self_test = false, synthetic = false, check_config = false, unattended = false, recovery = false;
         std::wstring path;
         for (int i = 1; i < argc; ++i) {
             const std::wstring argument(argv[i]);
@@ -479,12 +604,13 @@ int wmain(int argc, wchar_t** argv) {
             else if (argument == L"--self-test") self_test = true;
             else if (argument == L"--transport-check") synthetic = true;
             else if (argument == L"--unattended-fixtures") unattended = true;
+            else if (argument == L"--recovery-cycle") recovery = true;
             else if (argument == L"--check-config") check_config = true;
             else if (argument == L"--config" && i + 1 < argc) path = argv[++i];
-            else throw std::runtime_error("Usage: ms-rds-lab-client [--config local.json] [--check-config|--transport-check [--unattended-fixtures]|--smoke|--self-test]");
+            else throw std::runtime_error("Usage: ms-rds-lab-client [--config local.json] [--check-config|--transport-check [--unattended-fixtures [--recovery-cycle]]|--smoke|--self-test]");
         }
         if (static_cast<int>(smoke) + self_test + synthetic + check_config > 1 ||
-            ((smoke || self_test) && !path.empty()) || (unattended && !synthetic))
+            ((smoke || self_test) && !path.empty()) || (unattended && !synthetic) || (recovery && (!synthetic || !unattended)))
             throw std::runtime_error("Conflicting command options.");
         if (self_test) result = run_self_tests() ? 0 : 1;
         else {
@@ -506,10 +632,10 @@ int wmain(int argc, wchar_t** argv) {
                     if (!Transport::enable_safe_ssl_diagnostics())
                         throw std::runtime_error("Cannot enable bounded numeric TLS diagnostics.");
                     std::cout << "Windows Server lab only. Two RDP contexts; no host session, service or driver changes.\n";
-                    std::cout << "F6 pairs keyboards, right clicks pair mice; F8 resets, F12 closes. Host focus loss pauses input.\n";
+                    std::cout << "F6 pairs keyboards, right clicks pair mice; F7 retries unavailable seats, F8 resets, F9 disconnects the paired seat, F12 closes both. Host focus loss pauses input.\n";
                     if (unattended)
                         std::cout << "UNATTENDED: fixed VM fixtures after 30 seconds with both frames; host focus is not required. Verify the owned guest Notepads before sending." << std::endl;
-                    Application application(std::move(config), false, synthetic, unattended);
+                    Application application(std::move(config), false, synthetic, unattended, recovery);
                     result = application.run();
                 }
             }

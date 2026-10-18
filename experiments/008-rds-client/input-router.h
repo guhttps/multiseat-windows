@@ -22,6 +22,7 @@ struct SeatInput {
     int width{}, height{}, x{}, y{};
     std::set<unsigned> held_keys;
     unsigned held_buttons{};
+    bool enabled = true;
 };
 class InputRouter {
 public:
@@ -30,6 +31,7 @@ public:
     bool ready() const;
     void keyboard(HANDLE device, const RAWKEYBOARD& key, bool enabled);
     void mouse(HANDLE device, const RAWMOUSE& mouse, bool enabled);
+    void set_enabled(unsigned seat, bool enabled);
     void release_all();
     void reset();
     void device_removed(HANDLE device);
@@ -38,5 +40,6 @@ private:
     std::array<SeatInput, 2> seats_;
     Sink sink_;
     void button(unsigned seat, unsigned button, bool down);
+    void release(unsigned seat);
 };
 }
