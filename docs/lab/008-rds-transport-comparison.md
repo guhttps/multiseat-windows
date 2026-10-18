@@ -49,6 +49,8 @@ A verificação de documento vazio usa `document_empty_now` com consulta bem-suc
 
 Compilação Release e 14 testes CTest passaram localmente, além das fixtures inertes do preparo do convidado. Esses testes e a prova sintética têm escopos diferentes. Os relatórios brutos continuam privados.
 
+O frontend usa buffer de pintura por janela e mostra o progresso de associação de teclado e mouse de cada posto. Um único par não completa a associação dos dois postos; o teste físico requer os dois pares conectados. O smoke offline também exercita a pintura das duas janelas ocultas, sem capturar entrada nem conectar.
+
 ## Critério de conclusão
 
 O laboratório só demonstra as etapas efetivamente observadas do transporte RDS. Para aprovar o produto no Windows cliente ainda será necessário cumprir o gate do [ADR 0007](../architecture/0007-native-engine-gate.md) no mesmo backend alvo, incluindo GPU, segurança da interação, recuperação, áudio e jogos.

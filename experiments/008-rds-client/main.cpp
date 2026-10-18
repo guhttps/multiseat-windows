@@ -17,7 +17,39 @@ bool run_self_tests();
 namespace {
 constexpr wchar_t window_class[] = L"MultiseatRdsLabView";
 class Application;
-struct View { Application* app{}; unsigned index{}; HWND window{}; };
+class PaintBuffer {
+    HDC memory_{};
+    HBITMAP bitmap_{};
+    HGDIOBJ previous_{};
+    int width_{}, height_{};
+    void clear() noexcept {
+        if (memory_ && previous_) SelectObject(memory_, previous_);
+        if (bitmap_) DeleteObject(bitmap_);
+        if (memory_) DeleteDC(memory_);
+        memory_ = nullptr; bitmap_ = nullptr; previous_ = nullptr;
+        width_ = height_ = 0;
+    }
+public:
+    PaintBuffer() = default;
+    PaintBuffer(const PaintBuffer&) = delete;
+    PaintBuffer& operator=(const PaintBuffer&) = delete;
+    ~PaintBuffer() { clear(); }
+    HDC prepare(HDC target, int width, int height) {
+        if (memory_ && width == width_ && height == height_) return memory_;
+        clear();
+        memory_ = CreateCompatibleDC(target);
+        if (memory_) bitmap_ = CreateCompatibleBitmap(target, width, height);
+        if (bitmap_) previous_ = SelectObject(memory_, bitmap_);
+        if (!memory_ || !bitmap_ || !previous_ || previous_ == HGDI_ERROR) {
+            if (previous_ == HGDI_ERROR) previous_ = nullptr;
+            clear();
+            throw std::runtime_error("Cannot create the local view paint buffer.");
+        }
+        width_ = width; height_ = height;
+        return memory_;
+    }
+};
+struct View { Application* app{}; unsigned index{}; HWND window{}; PaintBuffer buffer; };
 bool input_desktop_is_default() {
     HDESK desktop = OpenInputDesktop(0, FALSE, DESKTOP_READOBJECTS);
     if (!desktop) return false;
@@ -166,7 +198,13 @@ public:
             else if (waiting_foreground_reported && !sent_synthetic)
                 status += L"\nClique em um destes painéis para permitir o envio do teste.";
         }
-        else if (!router.ready()) status += L"\nAssocie F6 no teclado1, F6 no teclado2; depois clique direito mouse1/mouse2.";
+        else if (!router.ready()) {
+            const SeatInput& seat = router.seat(view.index);
+            status += L"\nTeclado: " + std::wstring(seat.keyboard ? L"associado" : L"aguardando F6") +
+                L" | Mouse: " + std::wstring(seat.mouse ? L"associado" : L"aguardando clique direito");
+            status += capture ? L"\nComplete os dois pares: F6 em cada teclado; clique direito em cada mouse." :
+                L"\nAtive um painel para associar. São necessários dois teclados e dois mouses.";
+        }
         else status += capture ? L"\nEntrada ativa por dispositivo. F8 reassocia; F12 encerra." :
             L"\nEntrada pausada. Ative uma destas janelas para continuar; F12 encerra.";
         RECT text{ 10, 8, client.right - 10, 82 };
@@ -190,6 +228,15 @@ public:
         text = { 10, client.bottom - 24, client.right - 10, client.bottom };
         DrawTextW(dc, footer.c_str(), -1, &text, DT_LEFT | DT_NOPREFIX);
         SelectObject(dc, previous);
+    }
+    void paint_buffered(View& view, HDC target) {
+        RECT client{};
+        if (!GetClientRect(view.window, &client)) throw std::runtime_error("Cannot read local view dimensions.");
+        if (client.right <= 0 || client.bottom <= 0) return;
+        HDC memory = view.buffer.prepare(target, client.right, client.bottom);
+        paint(view, memory);
+        if (!BitBlt(target, 0, 0, client.right, client.bottom, memory, 0, 0, SRCCOPY))
+            throw std::runtime_error("Cannot present the local view paint buffer.");
     }
     void send_fixture(unsigned index) {
         auto send = [this, index](InputEvent event) {
@@ -274,7 +321,8 @@ public:
         if (!smoke) for (const SeatConfig& seat : config.seats)
             if (seat.monitor_index >= monitors.size()) throw std::runtime_error("A configured monitor is unavailable.");
         for (unsigned i = 0; i < views.size(); ++i) {
-            views[i] = { this, i, nullptr };
+            views[i].app = this;
+            views[i].index = i;
             const RECT rectangle = smoke ? RECT{ 0, 0, 800, 640 } : monitors[config.seats[i].monitor_index];
             const std::wstring title = L"Multiseat — laboratório RDP — posto " + std::to_wstring(i + 1);
             views[i].window = CreateWindowExW(smoke ? WS_EX_NOACTIVATE : 0, window_class, title.c_str(),
@@ -282,6 +330,15 @@ public:
                 rectangle.bottom - rectangle.top, nullptr, nullptr, GetModuleHandleW(nullptr), &views[i]);
             if (!views[i].window) throw std::runtime_error("Cannot create RDP lab view.");
             transports[i] = std::make_unique<Transport>(config, i, views[i].window);
+        }
+        if (smoke) for (View& view : views) {
+            // Exercise actual buffered painting without showing/activating a
+            // window, connecting a transport, or registering Raw Input.
+            HDC dc = GetDC(view.window);
+            if (!dc) throw std::runtime_error("Cannot open the hidden smoke view DC.");
+            try { paint_buffered(view, dc); }
+            catch (...) { ReleaseDC(view.window, dc); throw; }
+            ReleaseDC(view.window, dc);
         }
         started = GetTickCount64();
         if (!SetTimer(views[0].window, 1, 100, nullptr)) throw std::runtime_error("Cannot create lab gate timer.");
@@ -327,9 +384,12 @@ public:
             case WM_ERASEBKGND: return 1;
             case WM_SIZE: InvalidateRect(window, nullptr, FALSE); return 0;
             case frame_message: case state_message: app.update_gate(); app.invalidate(); return 0;
+            case WM_PRINTCLIENT: app.paint_buffered(*view, reinterpret_cast<HDC>(wparam)); return 0;
             case WM_PAINT: {
                 PAINTSTRUCT paint{}; HDC dc = BeginPaint(window, &paint);
-                app.paint(*view, dc); EndPaint(window, &paint); return 0;
+                try { app.paint_buffered(*view, dc); }
+                catch (...) { EndPaint(window, &paint); throw; }
+                EndPaint(window, &paint); return 0;
             }
             }
         } catch (...) {
