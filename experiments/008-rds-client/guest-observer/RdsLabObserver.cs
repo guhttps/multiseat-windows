@@ -50,6 +50,7 @@ namespace Multiseat.RdsLab
         [DataMember(Name = "foreground_is_notepad")] public bool ForegroundIsNotepad;
         [DataMember(Name = "dpi_aware")] public bool DpiAware;
         [DataMember(Name = "text_query_succeeded")] public bool TextQuerySucceeded;
+        [DataMember(Name = "document_empty_now")] public bool DocumentEmptyNow;
         [DataMember(Name = "exact_fixture_now")] public bool ExactFixtureNow;
         [DataMember(Name = "exact_fixture_seen")] public bool ExactFixtureSeen;
         [DataMember(Name = "other_fixture_now")] public bool OtherFixtureNow;
@@ -413,12 +414,14 @@ namespace Multiseat.RdsLab
         private static void ObserveExactFixture(IntPtr edit, string seat, Evidence evidence)
         {
             evidence.TextQuerySucceeded = false;
+            evidence.DocumentEmptyNow = false;
             evidence.ExactFixtureNow = false;
             evidence.OtherFixtureNow = false;
             UIntPtr result;
             if (Native.GetTextLength(edit, 0x000E, UIntPtr.Zero, IntPtr.Zero, Native.MessageFlags, Native.MessageTimeout, out result) == IntPtr.Zero)
                 return;
             evidence.TextQuerySucceeded = true;
+            evidence.DocumentEmptyNow = result.ToUInt64() == 0;
             // Never retrieve an arbitrary document or an unbounded string. Both
             // fixed fixtures have exactly ten UTF-16 characters. No text is logged.
             if (result.ToUInt64() != (ulong)FixtureA.Length) return;
@@ -509,7 +512,8 @@ namespace Multiseat.RdsLab
             using (MemoryStream memory = new MemoryStream(Encoding.UTF8.GetBytes(json)))
             {
                 Evidence copy = (Evidence)new DataContractJsonSerializer(typeof(Evidence)).ReadObject(memory);
-                return copy.OwnerValidated && copy.ExactFixtureNow && !copy.OtherFixtureSeen && copy.SessionId == copy.NotepadSessionId;
+                return copy.OwnerValidated && copy.ExactFixtureNow && !copy.DocumentEmptyNow &&
+                    !copy.OtherFixtureSeen && copy.SessionId == copy.NotepadSessionId;
             }
         }
     }

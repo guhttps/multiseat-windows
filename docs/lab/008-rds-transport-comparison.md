@@ -33,6 +33,7 @@ Administração do convidado por [PowerShell Direct](https://learn.microsoft.com
 | Aplicativos externos com processo e conta corretos | Passou; dois Notepads com PID, token SID e SessionID revalidados |
 | Duas imagens remotas apresentadas nos monitores locais | Dois framebuffers recebidos e janelas criadas para monitores distintos; conferência visual física pendente |
 | Encaminhamento sintético por conexão | Passou; cada Notepad observou sua fixture exata, sem a fixture cruzada nas amostras |
+| Encerramento do cliente após a prova sintética | Passou na repetição; código de saída zero e stderr vazio |
 | Interação física simultânea e troca de foco sem contaminação | Não observado |
 | Recuperação de falha, hotplug, bloqueio e UAC | Não observado |
 
@@ -42,7 +43,9 @@ O preparo do convidado passou após corrigir duas verificações: os métodos CI
 
 O cliente precisou de inicialização explícita do Winsock, agora coberta por resolução numérica offline. Uma tentativa inicial apresentou erro genérico de TLS; a causa não foi isolada. As conexões posteriores passaram com o mesmo certificado fixado, NLA obrigatória e TLS mínimo 1.2, sem relaxar esses controles. O diagnóstico registra apenas etapas e códigos numéricos.
 
-Na prova executada, o modo explícito `--transport-check --unattended-fixtures` manteve Raw Input desativado. Após os dois framebuffers, o controlador conferiu relatórios recentes, proprietários dos processos e Notepad em primeiro plano dentro de cada sessão. O cliente enviou somente `rdp-seat-a`/`rdp-seat-b`, sem Enter. A coleta posterior exigiu `exact_fixture_now`, sessões ativas distintas, tokens esperados, janela/controle válidos, aplicativos ainda abertos e ausência de erro; não aceitou apenas um sinal de envio ou resultado antigo. A captura física continua restrita ao próprio frontend em primeiro plano.
+Na prova executada, o modo explícito `--transport-check --unattended-fixtures` manteve Raw Input desativado. Após os dois framebuffers, o controlador conferiu relatórios recentes, proprietários dos processos, Notepad em primeiro plano dentro de cada sessão e documentos vazios. O cliente enviou somente `rdp-seat-a`/`rdp-seat-b`, sem Enter. A coleta posterior exigiu `exact_fixture_now`, sessões ativas distintas, tokens esperados, janela/controle válidos, aplicativos ainda abertos e ausência de erro; não aceitou apenas um sinal de envio ou resultado antigo. A repetição também confirmou encerramento do cliente com código zero e stderr vazio. A captura física continua restrita ao próprio frontend em primeiro plano.
+
+A verificação de documento vazio usa `document_empty_now` com consulta bem-sucedida. Apenas `exact_fixture_now=false` não basta: texto parcial de uma tentativa anterior também produz esse resultado. Tentativas que enviaram entrada exigem preparação limpa antes de repetir.
 
 Compilação Release e 14 testes CTest passaram localmente, além das fixtures inertes do preparo do convidado. Esses testes e a prova sintética têm escopos diferentes. Os relatórios brutos continuam privados.
 
