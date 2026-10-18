@@ -51,6 +51,9 @@ namespace Multiseat.RdsLab
         [DataMember(Name = "dpi_aware")] public bool DpiAware;
         [DataMember(Name = "text_query_succeeded")] public bool TextQuerySucceeded;
         [DataMember(Name = "document_empty_now")] public bool DocumentEmptyNow;
+        [DataMember(Name = "document_length_observed")] public bool DocumentLengthObserved;
+        [DataMember(Name = "document_character_count")] public int DocumentCharacterCount;
+        [DataMember(Name = "document_length_capped")] public bool DocumentLengthCapped;
         [DataMember(Name = "exact_fixture_now")] public bool ExactFixtureNow;
         [DataMember(Name = "exact_fixture_seen")] public bool ExactFixtureSeen;
         [DataMember(Name = "other_fixture_now")] public bool OtherFixtureNow;
@@ -124,6 +127,7 @@ namespace Multiseat.RdsLab
         private const string Purpose = "MultiseatRdsLab.RdsAuxiliary";
         private const string FixtureA = "rdp-seat-a";
         private const string FixtureB = "rdp-seat-b";
+        private const int DocumentLengthLimit = 256;
         private const string MarkerPath = @"C:\ProgramData\MultiseatRdsLab\lab-marker.json";
 
         [STAThread]
@@ -411,17 +415,36 @@ namespace Multiseat.RdsLab
             return String.Equals(text, seat == "A" ? FixtureA : FixtureB, StringComparison.Ordinal);
         }
 
+        private static bool RecordDocumentLength(Evidence evidence, ulong length)
+        {
+            // Counts are diagnostic samples, never a history of characters or
+            // key presses. Invalid lengths must not look like an empty editor.
+            evidence.DocumentLengthObserved = false;
+            evidence.DocumentCharacterCount = 0;
+            evidence.DocumentLengthCapped = false;
+            evidence.DocumentEmptyNow = false;
+            if (length > Int32.MaxValue) return false;
+            evidence.DocumentLengthObserved = true;
+            evidence.DocumentCharacterCount = (int)Math.Min(length, (ulong)DocumentLengthLimit);
+            evidence.DocumentLengthCapped = length > DocumentLengthLimit;
+            evidence.DocumentEmptyNow = length == 0;
+            return true;
+        }
+
         private static void ObserveExactFixture(IntPtr edit, string seat, Evidence evidence)
         {
             evidence.TextQuerySucceeded = false;
             evidence.DocumentEmptyNow = false;
+            evidence.DocumentLengthObserved = false;
+            evidence.DocumentCharacterCount = 0;
+            evidence.DocumentLengthCapped = false;
             evidence.ExactFixtureNow = false;
             evidence.OtherFixtureNow = false;
             UIntPtr result;
             if (Native.GetTextLength(edit, 0x000E, UIntPtr.Zero, IntPtr.Zero, Native.MessageFlags, Native.MessageTimeout, out result) == IntPtr.Zero)
                 return;
+            if (!RecordDocumentLength(evidence, result.ToUInt64())) return;
             evidence.TextQuerySucceeded = true;
-            evidence.DocumentEmptyNow = result.ToUInt64() == 0;
             // Never retrieve an arbitrary document or an unbounded string. Both
             // fixed fixtures have exactly ten UTF-16 characters. No text is logged.
             if (result.ToUInt64() != (ulong)FixtureA.Length) return;
@@ -492,6 +515,22 @@ namespace Multiseat.RdsLab
 
         private static bool SelfTest()
         {
+            Evidence lengthSample = new Evidence();
+            if (!RecordDocumentLength(lengthSample, 0) || !lengthSample.DocumentLengthObserved ||
+                !lengthSample.DocumentEmptyNow || lengthSample.DocumentCharacterCount != 0 || lengthSample.DocumentLengthCapped)
+                return false;
+            if (!RecordDocumentLength(lengthSample, 100) || lengthSample.DocumentEmptyNow ||
+                lengthSample.DocumentCharacterCount != 100 || lengthSample.DocumentLengthCapped) return false;
+            if (!RecordDocumentLength(lengthSample, DocumentLengthLimit) || lengthSample.DocumentLengthCapped ||
+                lengthSample.DocumentCharacterCount != DocumentLengthLimit) return false;
+            if (!RecordDocumentLength(lengthSample, Int32.MaxValue) || !lengthSample.DocumentLengthCapped ||
+                lengthSample.DocumentCharacterCount != DocumentLengthLimit) return false;
+            // Overflow/error-shaped values invalidate the previous observation.
+            if (RecordDocumentLength(lengthSample, UInt64.MaxValue) || lengthSample.DocumentLengthObserved ||
+                lengthSample.DocumentEmptyNow || lengthSample.DocumentLengthCapped || lengthSample.DocumentCharacterCount != 0)
+                return false;
+            if (!RecordDocumentLength(lengthSample, 10) || lengthSample.DocumentLengthCapped ||
+                lengthSample.DocumentCharacterCount != 10) return false;
             if (!IsExactFixture(FixtureA, "A") || !IsExactFixture(FixtureB, "B") ||
                 IsExactFixture(FixtureB, "A") || IsExactFixture(FixtureA, "B") ||
                 IsExactFixture("RDP-SEAT-A", "A") || IsExactFixture(FixtureA + "\r\n", "A") ||
@@ -507,13 +546,15 @@ namespace Multiseat.RdsLab
             Evidence fixture = new Evidence { RunId = run.ToString("D"), Seat = "A", TokenSid = "synthetic-token",
                 NotepadTokenSid = "synthetic-token", SessionId = 7, NotepadSessionId = 7, OwnerValidated = true,
                 WindowValidated = true, EditValidated = true, ExactFixtureNow = true, ExactFixtureSeen = true };
+            if (!RecordDocumentLength(fixture, (ulong)FixtureA.Length)) return false;
             string json = Encoding.UTF8.GetString(SerializeEvidence(fixture));
             if (json.Contains(FixtureA) || json.Contains(FixtureB) || json.Contains("private") || json.Contains("clipboard")) return false;
             using (MemoryStream memory = new MemoryStream(Encoding.UTF8.GetBytes(json)))
             {
                 Evidence copy = (Evidence)new DataContractJsonSerializer(typeof(Evidence)).ReadObject(memory);
                 return copy.OwnerValidated && copy.ExactFixtureNow && !copy.DocumentEmptyNow &&
-                    !copy.OtherFixtureSeen && copy.SessionId == copy.NotepadSessionId;
+                    !copy.OtherFixtureSeen && copy.SessionId == copy.NotepadSessionId &&
+                    copy.DocumentLengthObserved && copy.DocumentCharacterCount == FixtureA.Length && !copy.DocumentLengthCapped;
             }
         }
     }

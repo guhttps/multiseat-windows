@@ -49,6 +49,6 @@ Critérios de pesquisa, não funcionalidades entregues nem promessa comercial. O
 | P07 | LoL | Duas contas Riot distintas em partidas simultâneas por 30 minutos, Vanguard funcionando normalmente; medir erros e desconexões |
 | P08 | Desempenho | Registrar resolução/configuração de cada estação e FPS/CPU/GPU/RAM de uma e duas instâncias; alvo inicial de 60 FPS por estação, sujeito à medição |
 
-Dois painéis de uma aplicação cooperativa podem auxiliar a engenharia, mas não substituem P01/P03 com aplicações comuns. Não usar partidas competitivas para a primeira validação de estabilidade. Contas Windows de teste não foram criadas; testes P01–P08 continuam pendentes.
+Dois painéis de uma aplicação cooperativa podem auxiliar a engenharia, mas não substituem P01/P03 com aplicações comuns. Não usar partidas competitivas para a primeira validação de estabilidade. Contas sintéticas distintas foram criadas somente na VM do laboratório RDS; os critérios P01–P08 no motor nativo continuam pendentes.
 
 Issue de acompanhamento: [T004](https://github.com/guhttps/multiseat-windows/issues/4). Gate de arquitetura: [T007](https://github.com/guhttps/multiseat-windows/issues/7).

@@ -20,7 +20,7 @@ Produto multiseat nativo para Windows, com experiência de configuração compar
 
 O [ADR 0008](architecture/0008-backend-code-review.md) registra a revisão de candidatos e a escolha do [laboratório RDS separado](lab/008-rds-transport-comparison.md). Ele usa Windows Server como ambiente auxiliar para contas e transporte; seu resultado não deve ser anunciado como aprovação do produto nativo. Preserve a VM anterior e os relatórios privados.
 
-A prova sintética do laboratório 008 passou: duas sessões de contas distintas receberam as fixtures corretas em Notepads externos com propriedade revalidada. Não repetir instalação ou descoberta já concluídas. O próximo teste desse transporte é a interação física com os dois pares, incluindo troca de aplicativo em um posto sem interromper o outro; depois vêm recuperação e demais critérios. T007 continua dependendo do gate nativo.
+A prova sintética do laboratório 008 passou: duas sessões de contas distintas receberam as fixtures corretas em Notepads externos com propriedade revalidada. O usuário confirmou também a digitação física, o movimento separado das miras e a manutenção do alvo ao trocar aplicativos no outro posto, nos dois sentidos. Letras repetidas deliberadamente no teste manual não são uma falha de roteamento; a conferência automatizada de texto exato permanece pendente. Preserve esse resultado qualitativo e avance para recuperação de conexão e medição quantitativa. T007 continua dependendo do gate nativo.
 
 1. Leia STATUS.md e verifique a branch principal, o diff local e os workflows Windows build e Public content safety no GitHub.
 2. Preserve relatórios locais e a base privada anterior. Não faça merge do histórico antigo na base pública; ele contém um caminho de perfil pessoal em versões antigas.

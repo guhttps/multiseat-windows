@@ -1,6 +1,6 @@
 # Laboratório 008 — duas sessões reais por RDS em VM separada
 
-Estado em 2026-10-18: duas sessões autenticadas e transporte sintético até dois Notepads externos validados. A interação física ainda não foi validada neste transporte. Este laboratório é auxiliar e não aprova o motor nativo nem duas instâncias de LoL. A decisão está no [ADR 0008](../architecture/0008-backend-code-review.md).
+Estado em 2026-10-18: duas sessões autenticadas e transporte sintético até dois Notepads externos validados. O usuário confirmou digitação com os periféricos físicos e manutenção do alvo ao trocar aplicativos no outro posto. Recuperação e medição quantitativa continuam pendentes. Este laboratório é auxiliar e não aprova o motor nativo nem duas instâncias de LoL. A decisão está no [ADR 0008](../architecture/0008-backend-code-review.md).
 
 ## Escopo e ambiente
 
@@ -35,7 +35,8 @@ Administração do convidado por [PowerShell Direct](https://learn.microsoft.com
 | Encaminhamento sintético por conexão | Passou; cada Notepad observou sua fixture exata, sem a fixture cruzada nas amostras |
 | Encerramento do cliente após a prova sintética | Passou na repetição; código de saída zero e stderr vazio |
 | Ponteiros dos dois mouses no frontend | Miras separadas confirmadas pelo usuário; captura e liberação do cursor compartilhado observadas em runtime |
-| Interação física simultânea e troca de foco sem contaminação | Não observado |
+| Digitação com os teclados físicos | Confirmada visualmente pelo usuário; contadores registraram encaminhamento nos dois postos sem teclas sem rota. Conferência automatizada dos textos exatos ainda pendente |
+| Troca de aplicativo enquanto o outro posto mantém digitação | Confirmada pelo usuário nos dois sentidos; conferência qualitativa, sem a contagem quantitativa de P02 |
 | Recuperação de falha, hotplug, bloqueio e UAC | Não observado |
 
 Relatórios brutos, endereços, SIDs, certificados, identificadores e credenciais ficam somente em `docs/lab/results/` e `build/`, ignorados pelo Git. A evidência pública deve limitar-se a procedimento, resultado, limitações e booleanos revisados, sem anexar os arquivos brutos ou capturas do desktop pessoal.
@@ -52,7 +53,11 @@ Compilação Release e 14 testes CTest passaram localmente, além das fixtures i
 
 O frontend usa buffer de pintura por janela e mostra o progresso de associação de teclado e mouse de cada posto. Um único par não completa a associação dos dois postos; o teste físico requer os dois pares conectados. O smoke offline também exercita a pintura das duas janelas ocultas, sem capturar entrada nem conectar.
 
-Após o relato de que os dois mouses moviam o cursor principal do host, o modo físico passou a prender e ocultar esse cursor durante a captura do frontend. O usuário confirmou movimento separado das miras; uma coleta somente de leitura também observou a captura e sua liberação com o cliente ainda aberto e stderr vazio. As fixtures inertes verificaram falhas de aquisição/liberação, destruição e preservação de uma restrição mais recente de outro aplicativo. Isso ainda não confirma a digitação física nos Notepads nem dois cursores independentes do sistema Windows.
+Após o relato de que os dois mouses moviam o cursor principal do host, o modo físico passou a prender e ocultar esse cursor durante a captura do frontend. O usuário confirmou movimento separado das miras; uma coleta somente de leitura também observou a captura e sua liberação com o cliente ainda aberto e stderr vazio. As fixtures inertes verificaram falhas de aquisição/liberação, destruição e preservação de uma restrição mais recente de outro aplicativo. São miras do frontend; dois cursores independentes do sistema Windows continuam fora do resultado demonstrado.
+
+Na interação física posterior, o usuário confirmou que a digitação funcionou e esclareceu que as letras repetidas foram deliberadas. Os contadores privados registraram teclas encaminhadas para os dois contextos e nenhuma tecla sem rota. Em seguida, o usuário confirmou manutenção da digitação no posto correto ao alternar Notepad e Explorador no outro posto, nos dois sentidos. O resultado é qualitativo: a contagem de eventos, estabilidade e recuperação continuam pendentes. A prova automatizada de texto exato permanece separada. O observador passou a fornecer também uma contagem de tamanho limitada, para acompanhar atividade manual sem registrar conteúdo digitado; a atualização desse observador ainda exige implantação e conferência no guest.
+
+Para associar os periféricos, ative primeiro um painel pela barra de título; depois pressione F6 nos dois teclados e dê clique direito com cada mouse dentro do painel. A associação do segundo mouse completou após essa sequência. A captura pausa ao voltar para outro aplicativo do host. F8 libera o cursor e reinicia as associações.
 
 ## Critério de conclusão
 
