@@ -89,6 +89,8 @@ public:
     std::array<std::unique_ptr<Transport>, 2> transports;
     InputRouter router;
     CursorLease cursor;
+    std::array<ULONGLONG, 2> routed_keys{}, routed_clicks{};
+    ULONGLONG unassigned_keys{};
     bool smoke = false, synthetic = false, unattended = false, closing = false, registered = false, capture = false;
     bool sent_synthetic = false, send_failed = false, waiting_foreground_reported = false;
     ULONGLONG started = 0, connected_since = 0, synthetic_sent_at = 0;
@@ -97,8 +99,12 @@ public:
     int result = 0;
     Application(Config source, bool smoke_mode, bool synthetic_mode, bool unattended_mode = false)
         : config(std::move(source)), router(sizes(config), [this](unsigned seat, const InputEvent& event) {
-            if (transports[seat] && !transports[seat]->enqueue(event) &&
-                transports[seat]->state() == TransportState::Connected) send_failed = true;
+            if (transports[seat]) {
+                if (transports[seat]->enqueue(event)) {
+                    if (event.kind == EventKind::Key && event.down) ++routed_keys[seat];
+                    if (event.kind == EventKind::Button && event.code == 0 && event.down) ++routed_clicks[seat];
+                } else if (transports[seat]->state() == TransportState::Connected) send_failed = true;
+            }
         }), smoke(smoke_mode), synthetic(synthetic_mode), unattended(unattended_mode) {}
     ~Application() {
         cursor.release();
@@ -138,10 +144,17 @@ public:
         if (!RegisterRawInputDevices(devices, 2, sizeof(RAWINPUTDEVICE))) result = 1;
         registered = false;
     }
+    void report_input_counts() const {
+        if (smoke || synthetic) return;
+        for (unsigned i = 0; i < views.size(); ++i)
+            std::cout << "INPUT seat=" << i + 1 << " key_downs=" << routed_keys[i] <<
+                " left_clicks=" << routed_clicks[i] << std::endl;
+        std::cout << "INPUT unassigned_key_downs=" << unassigned_keys << std::endl;
+    }
     void update_gate() {
         if (smoke || synthetic || closing) return;
         const bool enabled = foreground() && both_connected();
-        if (!enabled && capture) router.release_all();
+        if (!enabled && capture) { router.release_all(); report_input_counts(); }
         capture = enabled;
         if (enabled && !registered) {
             RAWINPUTDEVICE devices[] = {
@@ -183,6 +196,10 @@ public:
             const RAWKEYBOARD& key = input.data.keyboard;
             if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F12) { close(0); return; }
             if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F8) { router.reset(); update_gate(); invalidate(); return; }
+            if (router.ready() && !(key.Flags & RI_KEY_BREAK) && key.VKey != VK_F6 &&
+                (!input.header.hDevice || key.MakeCode == 0 || key.MakeCode >= 255 || key.VKey == 255 ||
+                (router.seat(0).keyboard != input.header.hDevice && router.seat(1).keyboard != input.header.hDevice)))
+                ++unassigned_keys;
             router.keyboard(input.header.hDevice, key, true);
         } else router.mouse(input.header.hDevice, input.data.mouse, true);
         update_gate();
@@ -230,6 +247,10 @@ public:
         }
         else status += capture ? L"\nUse as miras vermelhas. Mouse do host preso; F8 libera, F12 encerra." :
             L"\nEntrada pausada. Ative uma destas janelas para continuar; F12 encerra.";
+        if (!smoke && !synthetic)
+            status += L"\nTeclas encaminhadas: " + std::to_wstring(routed_keys[view.index]) +
+                L" | Cliques: " + std::to_wstring(routed_clicks[view.index]) +
+                L" | Teclas sem rota: " + std::to_wstring(unassigned_keys);
         RECT text{ 10, 8, client.right - 10, 82 };
         DrawTextW(dc, status.c_str(), -1, &text, DT_LEFT | DT_NOPREFIX);
         RECT image = surface(client, view.index);
@@ -324,6 +345,7 @@ public:
         closing = true;
         result = exit_code;
         capture = false;
+        report_input_counts();
         if (!cursor.release()) result = 1;
         router.release_all();
         unregister_input();
