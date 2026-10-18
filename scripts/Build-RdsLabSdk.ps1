@@ -65,8 +65,30 @@ function Assert-SdkTagRefs {
     }
 }
 
+function Get-SdkCommandFailureCategory {
+    param([string]$Text)
+    if ($Text -match '(?i)unsupported SSL backend') { return 'tls_backend_unavailable' }
+    if ($Text -match '(?i)error setting certificate (?:file|verify locations)|CAfile:|CApath:') { return 'tls_ca_file' }
+    if ($Text -match '(?i)certificate verify failed|unable to get local issuer|SSL certificate problem|CERT_E_|SEC_E_UNTRUSTED_ROOT') {
+        return 'tls_certificate_validation'
+    }
+    if ($Text -match '(?i)could not resolve host|couldn.t resolve host') { return 'dns_resolution' }
+    if ($Text -match '(?i)HTTP[/ ]?2|HTTP_1_1_REQUIRED') { return 'http2_failure' }
+    if ($Text -match '(?i)(?:HTTP|error|returned)\D{0,24}429\b|rate limit|too many requests') { return 'http_rate_limit' }
+    if ($Text -match '(?i)authentication failed|terminal prompts disabled|could not read Username|returned error:\s*(?:401|403)') {
+        return 'unexpected_authentication'
+    }
+    if ($Text -match '(?i)failed to connect|connection timed out|could not connect|connection reset') { return 'network_connection' }
+    return 'native_command_failed'
+}
+
 function Invoke-SdkCommand {
     param([string]$Executable, [string[]]$Arguments, [string]$Directory, [string]$LogName, [switch]$ReadOutput)
+    $script:lastCommandStage = $LogName
+    $script:lastCommandExitCode = $null
+    $script:lastCommandCategory = 'command_not_completed'
+    $script:lastCommandOutputLines = $null
+    $script:lastCommandRefLinesValid = $null
     Assert-SdkPath $Directory $script:sdkRoot | Out-Null
     $log = Assert-SdkPath (Join-Path $script:logRoot ($LogName + '.private.log')) $script:sdkRoot
     Push-Location -LiteralPath $Directory
@@ -80,20 +102,38 @@ function Invoke-SdkCommand {
         $global:LASTEXITCODE = $null
         & $Executable @Arguments *> $log
         $nativeExit = $global:LASTEXITCODE
+        $script:lastCommandExitCode = $nativeExit
     } finally {
         $ErrorActionPreference = $previousPreference
         Pop-Location
     }
-    if ($null -eq $nativeExit -or $nativeExit -ne 0) { throw ('SDK command failed at stage ' + $LogName + '; inspect ignored build logs locally.') }
+    if ($null -eq $nativeExit -or $nativeExit -ne 0) {
+        $script:lastCommandCategory = 'native_command_failed'
+        if (Test-Path -LiteralPath $log -PathType Leaf) {
+            if ((Get-Item -LiteralPath $log -Force).Length -le 1MB) {
+                $script:lastCommandCategory = Get-SdkCommandFailureCategory (Get-Content -LiteralPath $log -Raw)
+            }
+        }
+        throw ('SDK command failed at stage ' + $LogName + '; inspect ignored build logs locally.')
+    }
+    $script:lastCommandCategory = 'none'
     # Detect the redirection BOM: Windows PowerShell writes UTF-16, PS7 UTF-8.
-    if ($ReadOutput) { @(Get-Content -LiteralPath $log) }
+    if ($ReadOutput) {
+        $lines = @(Get-Content -LiteralPath $log)
+        $script:lastCommandOutputLines = $lines.Count
+        if ($LogName.EndsWith('-remote-tag', [StringComparison]::Ordinal)) {
+            $script:lastCommandRefLinesValid = $lines.Count -gt 0 -and
+                @($lines | Where-Object { $_ -notmatch '^[a-f0-9]{40}\s+refs/tags/[^\s]+$' }).Count -eq 0
+        }
+        $lines
+    }
 }
 
 function Invoke-SdkGit {
     param([string[]]$Arguments, [string]$Directory, [string]$LogName, [switch]$ReadOutput)
     $fixed = @('--no-replace-objects', '-c', 'core.hooksPath=NUL', '-c', 'core.fsmonitor=false',
         '-c', 'core.symlinks=false', '-c', 'core.autocrlf=false', '-c', 'protocol.file.allow=never',
-        '-c', 'transfer.fsckObjects=true')
+        '-c', 'transfer.fsckObjects=true', '-c', 'http.sslBackend=schannel', '-c', 'http.sslVerify=true')
     Invoke-SdkCommand $script:git ($fixed + $Arguments) $Directory $LogName -ReadOutput:$ReadOutput
 }
 
@@ -169,6 +209,12 @@ try { $recipeHash = ([BitConverter]::ToString($sha.ComputeHash($recipeBytes))).R
 finally { $sha.Dispose() }
 
 $stage = 'preflight'
+$script:lastCommandStage = 'none'
+$script:lastCommandExitCode = $null
+$script:lastCommandCategory = 'none'
+$script:lastCommandOutputLines = $null
+$script:lastCommandRefLinesValid = $null
+$ownedTreeCreated = $false
 $environmentBefore = [Environment]::GetEnvironmentVariables('Process')
 $lock = $null
 try {
@@ -214,6 +260,7 @@ try {
     $receipt = [ordered]@{ schema_version = 1; purpose = 'MultiseatRdsLab.SourceSdk'; recipe_sha256 = $recipeHash
         complete = $false; sources = $pins; recipe = $recipe; files = @(); tests_disabled = $true; redistribution_approved = $false }
     [IO.File]::WriteAllText($receiptPath, ($receipt | ConvertTo-Json -Depth 10), [Text.UTF8Encoding]::new($false))
+    $ownedTreeCreated = $true
 
     # Ignore ambient Git credential/config hooks and build-injection variables.
     $emptyConfig = Join-Path $script:sdkRoot 'empty-git-config'
@@ -221,9 +268,12 @@ try {
     foreach ($name in @('CC', 'CXX', 'CFLAGS', 'CXXFLAGS', 'CPPFLAGS', 'LDFLAGS', 'CL', '_CL_', 'LINK', '_LINK_', 'MAKEFLAGS', 'DESTDIR', 'INSTALLDIR',
         'CMAKE_TOOLCHAIN_FILE', 'CMAKE_GENERATOR', 'CMAKE_PREFIX_PATH', 'PERL5LIB', 'PERLLIB', 'PERL5OPT', 'PERL5DB',
         'PERL5SHELL', 'OPENSSL_CONF', 'OPENSSL_MODULES', 'OPENSSL_LOCAL_CONFIG_DIR', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS', 'GIT_WORK_TREE', 'GIT_DIR', 'GIT_INDEX_FILE',
-        'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
+        'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_SSL_NO_VERIFY', 'GIT_SSL_CAINFO', 'GIT_SSL_CAPATH',
+        'GIT_SSL_VERSION', 'GIT_SSL_CIPHER_LIST', 'GIT_SSL_CERT', 'GIT_SSL_KEY')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
     $env:COMSPEC = Join-Path ([Environment]::GetFolderPath('System')) 'cmd.exe'
     $env:GIT_CONFIG_NOSYSTEM = '1'; $env:GIT_CONFIG_GLOBAL = $emptyConfig; $env:GIT_CONFIG_SYSTEM = $emptyConfig
+    # ls-remote must not inherit the project's local .git/config through build/.
+    $env:GIT_CEILING_DIRECTORIES = $script:sdkRoot
     $env:GIT_TERMINAL_PROMPT = '0'; $env:GCM_INTERACTIVE = 'Never'; $env:GIT_NO_REPLACE_OBJECTS = '1'
     $env:LANG = 'C'; $env:LC_ALL = 'C'; $env:LC_CTYPE = 'C'
     $script:git = (Get-Command git.exe -CommandType Application -ErrorAction Stop).Source
@@ -246,7 +296,11 @@ try {
         Write-Output ('RDS SDK: verifying and fetching pinned ' + $pin.name + '.')
         $remote = @(Invoke-SdkGit @('ls-remote', '--exit-code', '--tags', $pin.url,
             ('refs/tags/' + $pin.tag), ('refs/tags/' + $pin.tag + '^{}')) $script:sdkRoot ($pin.name + '-remote-tag') -ReadOutput)
-        Assert-SdkTagRefs $remote $pin.tag $pin.tag_object $pin.commit
+        try { Assert-SdkTagRefs $remote $pin.tag $pin.tag_object $pin.commit }
+        catch {
+            $script:lastCommandCategory = 'source_pin_mismatch'
+            throw
+        }
         $source = Assert-SdkPath (Join-Path $script:sdkRoot $pin.directory) $script:sdkRoot
         if (Test-Path -LiteralPath $source) { throw 'Refusing to reuse an unknown source directory.' }
         [IO.Directory]::CreateDirectory($source) | Out-Null
@@ -335,7 +389,21 @@ try {
     $global:LASTEXITCODE = 0
 } catch {
     # Logs can contain machine paths. Keep raw details local and print a category.
-    throw [InvalidOperationException]::new(('RDS_SDK_BUILD_FAILED:' + $stage))
+    $failureType = $_.Exception.GetType().FullName
+    $diagnostic = [ordered]@{ schema_version=1; stage=$stage; command_stage=$script:lastCommandStage
+        native_exit_code=$script:lastCommandExitCode; command_category=$script:lastCommandCategory
+        output_line_count=$script:lastCommandOutputLines; reference_lines_valid=$script:lastCommandRefLinesValid
+        exception_type=$failureType; hresult=$_.Exception.HResult
+        ps_error_category=$_.CategoryInfo.Category.ToString() }
+    if ($ownedTreeCreated) {
+        try {
+            $diagnosticPath = Assert-SdkPath (Join-Path $script:sdkRoot 'failure-summary.json') $script:sdkRoot
+            [IO.File]::WriteAllText($diagnosticPath, ($diagnostic | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+        } catch { }
+    }
+    $exitCategory = if ($null -eq $script:lastCommandExitCode) { 'not_started' } else { [string]$script:lastCommandExitCode }
+    throw [InvalidOperationException]::new(('RDS_SDK_BUILD_FAILED:' + $stage + ';command=' + $script:lastCommandStage +
+        ';exit=' + $exitCategory + ';category=' + $script:lastCommandCategory + ';type=' + $failureType))
 } finally {
     if ($null -ne $lock) { $lock.Dispose() }
     $environmentAfter = [Environment]::GetEnvironmentVariables('Process')
