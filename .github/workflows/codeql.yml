@@ -48,6 +48,10 @@ jobs:
 
       # Build upstream dependencies before extraction and outside this checkout.
       # Only this repository's optional client is compiled after CodeQL init.
+      - name: Check SDK command discovery without building dependencies
+        if: matrix.language == 'c-cpp'
+        run: ./scripts/Test-RdsLabSdkSafety.ps1
+
       - name: Build the pinned private RDS SDK
         if: matrix.language == 'c-cpp'
         run: |

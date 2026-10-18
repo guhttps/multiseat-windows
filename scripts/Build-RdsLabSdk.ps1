@@ -82,6 +82,17 @@ function Get-SdkCommandFailureCategory {
     return 'native_command_failed'
 }
 
+function Resolve-SdkApplication {
+    param([string]$Name)
+    # Get-Command can return several applications when PATH contains both Git
+    # cmd/ and bin/. Passing their joined paths to & produces CommandNotFound.
+    $command = Get-Command $Name -CommandType Application -ErrorAction Stop | Select-Object -First 1
+    if (-not $command -or -not (Test-Path -LiteralPath $command.Source -PathType Leaf)) {
+        throw 'A required SDK build application is unavailable.'
+    }
+    [string]$command.Source
+}
+
 function Invoke-SdkCommand {
     param([string]$Executable, [string[]]$Arguments, [string]$Directory, [string]$LogName, [switch]$ReadOutput)
     $script:lastCommandStage = $LogName
@@ -276,7 +287,7 @@ try {
     $env:GIT_CEILING_DIRECTORIES = $script:sdkRoot
     $env:GIT_TERMINAL_PROMPT = '0'; $env:GCM_INTERACTIVE = 'Never'; $env:GIT_NO_REPLACE_OBJECTS = '1'
     $env:LANG = 'C'; $env:LC_ALL = 'C'; $env:LC_CTYPE = 'C'
-    $script:git = (Get-Command git.exe -CommandType Application -ErrorAction Stop).Source
+    $script:git = Resolve-SdkApplication 'git.exe'
     $vswhere = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio/Installer/vswhere.exe'
     if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) { throw 'Visual Studio Installer vswhere is required.' }
     $vs = @(Invoke-SdkCommand $vswhere @('-latest', '-products', '*', '-version', '[17.0,19.0)',
@@ -285,10 +296,10 @@ try {
     $devShell = Join-Path $vs[0] 'Common7/Tools/Launch-VsDevShell.ps1'
     if (-not (Test-Path -LiteralPath $devShell -PathType Leaf)) { throw 'The installed Visual Studio developer shell is missing.' }
     & $devShell -Arch amd64 -HostArch amd64 -SkipAutomaticLocation *> (Join-Path $script:logRoot 'developer-shell.private.log')
-    $nmake = (Get-Command nmake.exe -CommandType Application -ErrorAction Stop).Source
-    $cmake = (Get-Command cmake.exe -CommandType Application -ErrorAction Stop).Source
-    $ninja = (Get-Command ninja.exe -CommandType Application -ErrorAction Stop).Source
-    $compiler = Get-Command cl.exe -CommandType Application -ErrorAction Stop
+    $nmake = Resolve-SdkApplication 'nmake.exe'
+    $cmake = Resolve-SdkApplication 'cmake.exe'
+    $ninja = Resolve-SdkApplication 'ninja.exe'
+    Resolve-SdkApplication 'cl.exe' | Out-Null
     if ($env:VSCMD_ARG_TGT_ARCH -cne 'x64' -or $env:VSCMD_ARG_HOST_ARCH -cne 'x64') { throw 'The MSVC shell is not x64 host/target.' }
 
     foreach ($pin in $pins) {

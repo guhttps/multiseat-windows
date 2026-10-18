@@ -34,6 +34,9 @@ jobs:
       - name: Validate RDS guest guards with inert fixtures
         shell: powershell
         run: ./scripts/Test-RdsLabGuestSafety.ps1
+      - name: Validate SDK command discovery with inert fixtures
+        shell: powershell
+        run: ./scripts/Test-RdsLabSdkSafety.ps1
       - name: Validate public-content policy on Windows PowerShell
         shell: powershell
         run: ./scripts/Test-PublicContentSafety.ps1
