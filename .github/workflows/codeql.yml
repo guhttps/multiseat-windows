@@ -23,7 +23,7 @@ jobs:
     if: github.event_name != 'push' || github.actor != 'dependabot[bot]'
     # The supported VS 2022 compiler and Windows SDK are preinstalled here.
     runs-on: windows-2022
-    timeout-minutes: 45
+    timeout-minutes: 90
     permissions:
       contents: read
       security-events: write
@@ -46,6 +46,13 @@ jobs:
         with:
           persist-credentials: false
 
+      # Build upstream dependencies before extraction and outside this checkout.
+      # Only this repository's optional client is compiled after CodeQL init.
+      - name: Build the pinned private RDS SDK
+        if: matrix.language == 'c-cpp'
+        run: |
+          ./scripts/Build-RdsLabSdk.ps1 -BuildRoot (Join-Path $env:RUNNER_TEMP 'rds-sdk') -Parallel 4
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
         with:
@@ -59,10 +66,21 @@ jobs:
       - name: Build every CMake target for extraction
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake -S . -B build/codeql -G 'Visual Studio 17 2022' -A x64 -DBUILD_TESTING=ON -DMULTISEAT_BUILD_CHILD_SESSION_HOST=ON
+          $options = @('-DBUILD_TESTING=ON', '-DMULTISEAT_BUILD_CHILD_SESSION_HOST=ON')
+          if ('${{ matrix.language }}' -ceq 'c-cpp') {
+            $prefix = Join-Path $env:RUNNER_TEMP 'rds-sdk/install'
+            $options += @('-DMULTISEAT_BUILD_RDS_LAB=ON', ('-DCMAKE_PREFIX_PATH=' + $prefix), ('-DMULTISEAT_RDS_RUNTIME_DIR=' + (Join-Path $prefix 'bin')))
+          }
+          cmake -S . -B build/codeql -G 'Visual Studio 17 2022' -A x64 @options
           if ($LASTEXITCODE -ne 0) { throw 'CodeQL CMake configure failed.' }
           cmake --build build/codeql --config Release --clean-first
           if ($LASTEXITCODE -ne 0) { throw 'CodeQL CMake build failed.' }
+
+      - name: Check the extracted RDS client without connecting
+        if: matrix.language == 'c-cpp'
+        run: |
+          ctest --test-dir build/codeql -C Release -R 'rds-' --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'RDS offline policy or window smoke check failed.' }
 
       - name: Compile C# script helpers for extraction
         if: matrix.language == 'csharp'

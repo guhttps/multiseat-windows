@@ -86,5 +86,5 @@ $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $reportPath -Encodi
 foreach ($name in $observations.Keys) {
     Write-Host ($name + ': ' + $observations[$name].status)
 }
-Write-Host ('Relatorio local: ' + $reportPath)
+Write-Host ('Relatorio local (ignorado pelo Git): docs/lab/results/readiness-' + $runId + '/readiness.json')
 Write-Host 'Motor nativo ainda nao demonstrado. Este relatorio nao aprova uma arquitetura.'

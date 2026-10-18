@@ -3,6 +3,7 @@ project(multiseat_windows VERSION 0.0.1 LANGUAGES CXX)
 if(NOT WIN32 OR NOT MSVC)
   message(FATAL_ERROR "These experiments require Windows x64, MSVC and the Windows SDK.")
 endif()
+
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
   message(FATAL_ERROR "Configure the Windows x64 target with -A x64.")
 endif()
@@ -96,4 +97,60 @@ if(BUILD_TESTING)
   endif()
   get_property(multiseat_tests DIRECTORY PROPERTY TESTS)
   set_tests_properties(${multiseat_tests} PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+endif()
+
+# Compile the guest observer in the default build so the C# security analysis
+# sees it too. Its only automatic execution is an offline self-test; launching
+# Notepad/observing a guest session requires the separate explicit lab mode.
+set(rds_observer_executable "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/RdsLabObserver.exe")
+file(TO_NATIVE_PATH "${rds_observer_executable}" rds_observer_executable_native)
+file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/experiments/008-rds-client/guest-observer/RdsLabObserver.cs" rds_observer_source_native)
+add_custom_command(
+  OUTPUT "${rds_observer_executable}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>"
+  COMMAND "${CMAKE_COMMAND}" -E env --unset=LIB "${control_panel_compiler}"
+    /nologo /target:winexe /platform:x64 /warn:4 /warnaserror+ /debug- /optimize+ /codepage:65001
+    "/out:${rds_observer_executable_native}"
+    /reference:System.Management.dll /reference:System.Runtime.Serialization.dll /reference:System.Security.dll
+    "${rds_observer_source_native}"
+  DEPENDS experiments/008-rds-client/guest-observer/RdsLabObserver.cs
+  VERBATIM)
+add_custom_target(ms-rds-guest-observer ALL DEPENDS "${rds_observer_executable}")
+if(BUILD_TESTING)
+  add_test(NAME rds-guest-observer-offline COMMAND "${rds_observer_executable}" --self-test)
+  set_tests_properties(rds-guest-observer-offline PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+endif()
+
+# Optional Windows Server VM laboratory only. This is an RDP transport client,
+# not a native Windows-client multiseat engine. Dependencies are provisioned
+# explicitly outside this source tree; configuring the default build downloads
+# nothing and cannot create or connect any RDP session.
+option(MULTISEAT_BUILD_RDS_LAB "Build the optional two-context FreeRDP Server laboratory" OFF)
+if(MULTISEAT_BUILD_RDS_LAB)
+  find_package(FreeRDP 3.32.2 EXACT CONFIG REQUIRED)
+  find_package(WinPR 3.32.2 EXACT CONFIG REQUIRED)
+  set(MULTISEAT_RDS_RUNTIME_DIR "" CACHE PATH "Private SDK bin directory for the RDS lab CTest process PATH")
+  set(rds_lab_root "${CMAKE_CURRENT_SOURCE_DIR}/experiments/008-rds-client")
+  multiseat_experiment(ms-rds-lab-client "${rds_lab_root}/main.cpp")
+  target_sources(ms-rds-lab-client PRIVATE
+    "${rds_lab_root}/config.cpp" "${rds_lab_root}/input-router.cpp"
+    "${rds_lab_root}/transport.cpp" "${rds_lab_root}/network.cpp"
+    "${rds_lab_root}/ssl-diagnostics.cpp" "${rds_lab_root}/tests.cpp")
+  target_link_libraries(ms-rds-lab-client PRIVATE freerdp winpr
+    user32 gdi32 crypt32 bcrypt ncrypt runtimeobject shell32 ole32 advapi32 ws2_32)
+  if(BUILD_TESTING)
+    multiseat_experiment(ms-rds-lab-logic "${rds_lab_root}/tests-main.cpp")
+    target_sources(ms-rds-lab-logic PRIVATE "${rds_lab_root}/config.cpp"
+      "${rds_lab_root}/input-router.cpp" "${rds_lab_root}/network.cpp"
+      "${rds_lab_root}/ssl-diagnostics.cpp" "${rds_lab_root}/tests.cpp")
+    target_link_libraries(ms-rds-lab-logic PRIVATE user32 crypt32 bcrypt ncrypt runtimeobject shell32 ole32 advapi32 ws2_32)
+    add_test(NAME rds-lab-offline-policy COMMAND ms-rds-lab-logic)
+    add_test(NAME rds-lab-window-smoke COMMAND ms-rds-lab-client --smoke)
+    set_tests_properties(rds-lab-offline-policy rds-lab-window-smoke
+      PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+    if(MULTISEAT_RDS_RUNTIME_DIR)
+      set_tests_properties(rds-lab-window-smoke PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${MULTISEAT_RDS_RUNTIME_DIR}")
+    endif()
+  endif()
 endif()

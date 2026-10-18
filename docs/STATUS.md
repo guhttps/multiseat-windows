@@ -1,19 +1,20 @@
 # Estado do projeto
 
-Atualizado em 2026-10-16. Protótipo de pesquisa: nenhuma segunda estação independente para aplicativos externos foi demonstrada. O objetivo continua sendo um concorrente completo do ASTER, com implementação independente.
+Atualizado em 2026-10-18. Protótipo de pesquisa: o motor nativo para duas estações no Windows cliente ainda não foi demonstrado. O laboratório auxiliar em Windows Server validou duas contas e entrada sintética em aplicativos externos. O objetivo continua sendo um concorrente completo do ASTER, com implementação independente.
 
 ## O que funciona e foi verificado
 
 - Diagnóstico Win32 de sessão, desktop e monitores, sem alterar configuração.
 - Identificação de dois teclados e dois mouses e roteamento para painéis próprios.
 - Associação, uso simultâneo e recuperação de periféricos nos painéis próprios confirmados em laboratório.
-- Build Release C++ e C# integrado ao CMake; onze verificações seguras via CTest passaram localmente, incluindo lógica e inicialização do painel. O pacote sem o experimento C# de sessão filha executa nove dessas verificações.
+- Build Release C++ e C# integrado ao CMake; 14 verificações seguras via CTest passaram na configuração local com o laboratório RDS opcional, incluindo os testes comuns, painel, observador e política do cliente. O build comum conta 12 testes; sem o host C# de sessão filha, conta dez.
+- Laboratório RDS separado: duas contas não administrativas, duas sessões ativas distintas e dois Notepads com propriedade verificada receberam suas fixtures sintéticas corretas. O cliente usa NLA e certificado fixado; o resultado ainda não inclui periféricos físicos, áudio, jogos ou o motor nativo. Veja [laboratório 008](lab/008-rds-transport-comparison.md).
 - Validação de tamanho/tipo de Raw Input e aposentadoria de IDs de dispositivos removidos.
 - Teste de sessão filha exige observação estável de conexão/login, impede concorrência na mesma sessão e revalida a identidade antes de encerrar a sessão criada pelo teste.
 - Pacote de comparação validado antes da extração; fixtures verificam corrupção, caminhos fora da pasta, duplicatas, arquivos extras, junctions e preservação de resultados anteriores.
 - Falhas de lançamento e do experimento rastreado deixam de aparecer como sucesso por código de saída antigo.
 
-Essas verificações não criam duas estações e não demonstram compatibilidade com duas instâncias de um jogo.
+Essas verificações não aprovam duas estações nativas no Windows cliente nem demonstram compatibilidade com duas instâncias de um jogo.
 
 ## Publicação e privacidade
 
@@ -36,6 +37,8 @@ O painel da versão **v0.1.0-experimental.1** organiza duas estações, lista os
 A [distribuição experimental publicada](https://github.com/guhttps/multiseat-windows/releases/tag/v0.1.0-experimental.1) oferece instalador por usuário e pacote portátil para Windows x64. Ela inclui o painel e quatro ferramentas de diagnóstico/teste. Conteúdo permitido, hashes, privacidade, instalação/desinstalação e preservação de configurações passaram no [workflow de distribuição](https://github.com/guhttps/multiseat-windows/actions/runs/38933842227). Uma revisão independente dos artefatos não identificou dados pessoais ou segredos. Os quatro downloads públicos foram conferidos sem autenticação. Instalação por usuário e inicialização do painel também passaram no ambiente alvo, sem reinicialização. Consulte [download e instalação](DOWNLOAD-INSTALL.md) para os passos de uso e a ausência de assinatura de código desta versão.
 
 ## Próximo resultado necessário
+
+A revisão de código dos candidatos está no [ADR 0008](architecture/0008-backend-code-review.md). Nenhum motor completo reutilizável foi identificado. Foi escolhido um laboratório auxiliar com Windows Server em uma VM separada para desenvolver o transporte de duas sessões reais; a [preparação e as provas pendentes](lab/008-rds-transport-comparison.md) distinguem esse teste da meta nativa.
 
 Demonstrar uma integração de terminal/sessão, display físico e entrada que mantenha dois usuários Windows distintos interagindo ao mesmo tempo, com aplicativos comuns e recuperação de falhas. Áudio, jogos, desempenho e distribuição do motor dependem dessa prova. A instalação do painel experimental é uma entrega separada e não aprova o motor. Os critérios P01–P08 estão em [PRODUCT-SCOPE.md](PRODUCT-SCOPE.md).
 

@@ -31,6 +31,8 @@ O provedor `IWRdsProtocolManager` documenta suporte em Windows Server 2012 ou po
 
 Esses limites não declaram impossível criar um concorrente. A documentação pública consultada não apresenta uma composição pronta que satisfaça o contrato no alvo. Não deduzir a arquitetura interna do ASTER apenas dos recursos que o fornecedor anuncia.
 
+Revisão de 2026-10-17: [IWRdsProtocolConnection2](https://learn.microsoft.com/en-us/windows/win32/api/wtsprotocol/nn-wtsprotocol-iwrdsprotocolconnection2) declara Windows cliente build 26100 e acrescenta credenciais serializadas para logon. Essa extensão não documenta duas estações físicas simultâneas nem substitui o contrato base do provider. Não generalizar a restrição de plataforma de uma interface para toda a família. A revisão de implementações e a decisão de laboratório estão no [ADR 0008](0008-backend-code-review.md).
+
 ## Comparação com ASTER e jogos
 
 O fornecedor anuncia estações independentes e associação de periféricos. A versão 2.70.6, publicada em 2026-09-08, declara suporte a builds Windows 11 até 26500 e alterações relacionadas a políticas de segurança. Sua documentação também descreve compartilhamento de uma GPU e incompatibilidades de aplicativos. Portanto, segunda GPU não é requisito obrigatório estabelecido para nosso projeto, e a lista de recursos comerciais não comprova compatibilidade universal. Fontes: [produto](https://astermultiseat.com/), [versões do fornecedor](https://ibiksoft.com/download-aster-multiseat-software/), [limites de aplicativos](https://dokwiki.ibiksoft.com/en/v3/core/faq/faq_soft).

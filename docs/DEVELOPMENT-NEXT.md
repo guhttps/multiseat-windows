@@ -1,6 +1,6 @@
 # Continuidade do desenvolvimento
 
-Atualizado em 2026-10-16. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
+Atualizado em 2026-10-18. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
 
 ## Objetivo
 
@@ -13,10 +13,14 @@ Produto multiseat nativo para Windows, com experiência de configuração compar
 - CMake/CTest integrados, verificações de privacidade e segredos em CI.
 - Política de autoria pública: o guard do histórico valida nomes de autor e committer dos mantenedores mesmo com e-mail noreply. A configuração local usa a identidade pública do projeto; merges gerados pelo GitHub exigem revisar os metadados produzidos pelo servidor. Veja [SECURITY.md](../SECURITY.md).
 - CodeQL configurado para C++/C# com build manual em runner temporário e análise semanal. Dependabot propõe atualizações das ações fixadas; nenhuma atualização é integrada automaticamente. Ferramentas de download manual ainda exigem revisão de versões e hashes.
-- Compilação Release e onze testes locais aprovados, incluindo o painel; o pacote sem o host de sessão filha usa nove testes. A base pública passou Windows build e Public content safety no GitHub. Mudanças posteriores continuam exigindo CI.
+- Compilação Release e 14 testes locais aprovados na configuração RDS opcional, incluindo os testes comuns e o painel. O build comum conta 12 testes; sem o host de sessão filha, dez. A base pública passou Windows build e Public content safety no GitHub. Mudanças posteriores continuam exigindo CI.
 - Painel Windows para planejar duas estações publicado em [v0.1.0-experimental.1](https://github.com/guhttps/multiseat-windows/releases/tag/v0.1.0-experimental.1), com instalador por usuário e ZIP. Compilação limpa, instalação/desinstalação, hashes e downloads anônimos verificados. Painel instalado no ambiente alvo e inicialização validada. Isso não aprova um motor multiseat.
 
 ## Retomar sem repetir trabalho
+
+O [ADR 0008](architecture/0008-backend-code-review.md) registra a revisão de candidatos e a escolha do [laboratório RDS separado](lab/008-rds-transport-comparison.md). Ele usa Windows Server como ambiente auxiliar para contas e transporte; seu resultado não deve ser anunciado como aprovação do produto nativo. Preserve a VM anterior e os relatórios privados.
+
+A prova sintética do laboratório 008 passou: duas sessões de contas distintas receberam as fixtures corretas em Notepads externos com propriedade revalidada. Não repetir instalação ou descoberta já concluídas. O próximo teste desse transporte é a interação física com os dois pares, incluindo troca de aplicativo em um posto sem interromper o outro; depois vêm recuperação e demais critérios. T007 continua dependendo do gate nativo.
 
 1. Leia STATUS.md e verifique a branch principal, o diff local e os workflows Windows build e Public content safety no GitHub.
 2. Preserve relatórios locais e a base privada anterior. Não faça merge do histórico antigo na base pública; ele contém um caminho de perfil pessoal em versões antigas.
