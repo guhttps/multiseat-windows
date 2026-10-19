@@ -24,6 +24,8 @@ A prova sintética do laboratório 008 passou: duas sessões de contas distintas
 
 O primeiro ensaio físico de retirada do teclado do posto 1 manteve digitação no posto 2 segundo o usuário, com contagens privadas compatíveis nos mesmos aplicativos. O estado posterior das associações ainda precisa de conferência antes de aprovar o ciclo. A revisão também manteve os avisos de dispositivos durante a pausa por perda de foco, sem solicitar entrada em segundo plano, e cobriu chegadas repetidas após atualizar o registro. A versão executada no teste físico deve ser identificada separadamente do código recém-compilado.
 
+O ensaio automático de PnP passou para desativação e reativação dos dois mouses, separadamente: avisos reais chegaram ao roteador de produção, fixtures sintéticas preservaram o outro posto e a reassociação foi explícita. Todos os dispositivos terminaram habilitados e os processos de recuperação encerraram. A triagem excluiu os teclados sem `DN_DISABLEABLE`; manter esse limite. Esse resultado não aprova hotplug com cabos ou aplicativos externos. Agrupe operações administrativas numa rodada limitada para reduzir pedidos de UAC; confirme o privilégio real do processo em vez de inferi-lo do modo de acesso do agente.
+
 1. Leia STATUS.md e verifique a branch principal, o diff local e os workflows Windows build e Public content safety no GitHub.
 2. Preserve relatórios locais e a base privada anterior. Não faça merge do histórico antigo na base pública; ele contém um caminho de perfil pessoal em versões antigas.
 3. Se os testes falharem, corrija a falha e execute somente as verificações afetadas, seguidas das verificações obrigatórias.

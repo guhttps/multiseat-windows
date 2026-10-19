@@ -40,6 +40,7 @@ Administração do convidado por [PowerShell Direct](https://learn.microsoft.com
 | Desconexão e reconexão do transporte de um posto | Passou em ciclo sintético: o outro recebeu texto durante a desconexão; os mesmos aplicativos e sessões foram preservados após reconectar; encerramento com código zero |
 | Recuperação de transporte com periféricos físicos | Confirmada pelo usuário nos dois sentidos; registros disponíveis mostram desconexão do posto 1 e continuidade de entrada no posto 2. Conferência automatizada da sequência completa pendente |
 | Remoção e reconexão de periféricos | Fixtures offline passaram nos dois sentidos; primeira retirada física de teclado com continuidade no posto oposto confirmada pelo usuário e contagens compatíveis. Preservação completa das associações e reconexão física ainda em conferência |
+| Desativação e reativação de mouses por PnP | Passou nos dois postos, com avisos reais do Windows e fixtures sintéticas no roteador de produção; par intacto preservado e reassociação explícita exigida. Todos os dispositivos selecionados reabilitados; teste com cabos e aplicativos externos ainda pendente |
 | Observação automática de cinco minutos | Passou em 22 amostras durante 303 segundos: duas sessões ativas, mesmos aplicativos com propriedade verificada e duas janelas locais responsivas; sem interação contínua ou medição de latência |
 | Bloqueio e UAC | Pendentes; o ciclo sintético não aprova esses cenários |
 
@@ -86,6 +87,16 @@ As amostras registraram entre 14 e 15 objetos GDI; a contagem de handles passou 
 Na mesma revisão, o ciclo `--transport-check --unattended-fixtures --recovery-cycle` passou novamente após preparar dois editores vazios. O coletor confirmou a fixture do posto 2 enquanto o posto 1 estava desconectado, revalidou o editor reconectado antes das teclas e confirmou as duas fixtures exatas nos mesmos aplicativos. O cliente terminou com código zero e stderr vazio.
 
 Um ensaio separado e local verificou a identidade de quatro dispositivos de entrada individuais, em contêineres USB distintos, e preservou suas associações de teste durante mudanças reais das flags de registro. Esse preparo usou entrada sintética somente no roteador, sem encaminhá-la ao sistema ou aos aplicativos. Nenhum dispositivo foi desativado nessa etapa; ela não substitui o teste de remoção e reconexão.
+
+## Desativação e reativação de mouses por PnP
+
+Um ensaio posterior usou um receptor oculto com `InputRegistration` e `InputRouter` da revisão `95f3f44`. Os quatro dispositivos da fixture foram identificados por interface e instância PnP, com classe, serviço, pai, estado inicial e ausência de filhos conferidos. Somente os dois dispositivos individuais de mouse foram elegíveis para desativação, um por vez. Os teclados do ambiente não apresentavam `DN_DISABLEABLE`; uma tentativa inicial de desativação não gerou a remoção esperada e terminou com todos habilitados. A triagem passou a exigir essa flag antes de autorizar qualquer mudança.
+
+O roteiro usou [`CM_Disable_DevNode`](https://learn.microsoft.com/en-us/windows/win32/api/cfgmgr32/nf-cfgmgr32-cm_disable_devnode) sem persistência após reinicialização, conferiu o código de problema 22, aguardou quatro segundos e reativou o dispositivo. Um processo separado de recuperação ficou pronto antes de cada desativação. O intervalo registrado entre a confirmação da desativação e a confirmação da reativação foi de aproximadamente 5,4 e 5,5 segundos, incluindo as consultas de verificação.
+
+Nos dois sentidos, os avisos reais de remoção liberaram somente as teclas e botões sintéticos mantidos pelo posto afetado. O outro par manteve associações, entradas pressionadas e encaminhamento para seu sink de teste. A chegada do mouse reativado não o associou automaticamente: a fixture exigiu clique direito explícito no roteador antes de retomar. Nenhuma mensagem de entrada em segundo plano foi recebida. Os dois testes encerraram com código zero; os quatro dispositivos foram conferidos habilitados e os dois processos de recuperação terminaram.
+
+Esse ensaio combina PnP real com entrada sintética interna ao roteador. A retirada física de cabos, a identificação dos pares pelo usuário e a continuidade da digitação em aplicativos externos durante o hotplug exigem uma prova integrada própria. Os planos, interfaces, instâncias e relatórios completos permanecem somente nos resultados locais ignorados pelo Git.
 
 ## Critério de conclusão
 
