@@ -4,6 +4,7 @@
 #include "input-registration.h"
 #include "cursor-lease.h"
 #include "ssl-diagnostics.h"
+#include "options.h"
 #include <wincrypt.h>
 #include <bcrypt.h>
 #include <ncrypt.h>
@@ -20,6 +21,31 @@ void require(bool condition) { if (!condition) throw std::runtime_error("Offline
 void rejects(const std::function<void()>& operation) {
     try { operation(); } catch (const std::runtime_error&) { return; }
     throw std::runtime_error("Unsafe fixture was accepted.");
+}
+void option_tests() {
+    const auto parse = [](std::initializer_list<std::wstring> arguments) {
+        const std::vector<std::wstring> values(arguments);
+        return parse_options(values);
+    };
+    const auto normal = parse({});
+    require(!normal.synthetic && !normal.unattended && !normal.recovery);
+    for (const std::wstring seat : { L"1", L"2" }) {
+        const auto option = parse({ L"--recovery-seat", seat, L"--unattended-fixtures", L"--transport-check", L"--recovery-cycle" });
+        require(option.synthetic && option.unattended && option.recovery && option.recovery_index == (seat == L"1" ? 0U : 1U));
+    }
+    require(parse({ L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle" }).recovery_index == 0);
+    for (const auto& values : std::vector<std::vector<std::wstring>>{
+        {L"--recovery-seat", L"2"}, {L"--transport-check", L"--recovery-cycle"},
+        {L"--unattended-fixtures"}, {L"--smoke", L"--transport-check"},
+        {L"--self-test", L"--config", L"private.json"},
+        {L"--transport-check", L"--unattended-fixtures", L"--recovery-seat", L"2"},
+        {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--recovery-seat"},
+        {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--recovery-seat", L"0"},
+        {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--recovery-seat", L"3"},
+        {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--recovery-seat", L"-1"},
+        {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--recovery-seat", L"02"},
+        {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--recovery-seat", L"1", L"--recovery-seat", L"2"}})
+        rejects([&] { parse_options(values); });
 }
 std::wstring fixture() {
     return LR"({"schema_version":1,"server_address":"10.73.12.2","server_port":3389,
@@ -509,6 +535,7 @@ bool run_self_tests() {
         require(numeric_address_smoke());
         std::cout << "PASS: Winsock 2.2 and numeric IPv4 getaddrinfo; no DNS or socket connection.\n";
         configuration_tests(); std::cout << "PASS: strict local configuration and UTF-8 policy.\n";
+        option_tests(); std::cout << "PASS: explicit synthetic recovery in either direction and unsafe mode combinations rejected.\n";
         dpapi_tests(); std::cout << "PASS: current-user DPAPI round trip and malformed/invalid payload rejection.\n";
         ssl_diagnostic_tests(); std::cout << "PASS: bounded TLS diagnostic parser returns numeric codes only.\n";
         certificate_tests(); std::cout << "PASS: ephemeral certificate SHA-256 leaf pin and mismatch rejection.\n";

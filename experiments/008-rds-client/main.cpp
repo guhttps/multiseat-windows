@@ -4,6 +4,7 @@
 #include "input-registration.h"
 #include "cursor-lease.h"
 #include "transport.h"
+#include "options.h"
 #include "../common/raw-input.h"
 #include <roapi.h>
 #include <array>
@@ -102,13 +103,15 @@ public:
     std::array<ULONGLONG, 2> attempt_started{};
     bool smoke = false, synthetic = false, unattended = false, closing = false, capture = false;
     bool recovery = false;
+    unsigned recovery_index = 0;
     RecoveryPhase recovery_phase = RecoveryPhase::Initial;
     ULONGLONG recovery_phase_since = 0;
     bool sent_synthetic = false, waiting_foreground_reported = false;
     ULONGLONG started = 0, connected_since = 0, synthetic_sent_at = 0;
     std::array<std::string, 2> last_progress;
     int result = 0;
-    Application(Config source, bool smoke_mode, bool synthetic_mode, bool unattended_mode = false, bool recovery_mode = false)
+    Application(Config source, bool smoke_mode, bool synthetic_mode, bool unattended_mode = false, bool recovery_mode = false,
+        unsigned recovery_seat = 0)
         : config(std::move(source)), router(sizes(config), [this](unsigned seat, const InputEvent& event) {
             if (transports[seat]) {
                 if (transports[seat]->enqueue(event)) {
@@ -116,7 +119,7 @@ public:
                     if (event.kind == EventKind::Button && event.code == 0 && event.down) ++routed_clicks[seat];
                 } else if (transports[seat]->state() == TransportState::Connected) send_failed[seat] = true;
             }
-        }), smoke(smoke_mode), synthetic(synthetic_mode), unattended(unattended_mode), recovery(recovery_mode) {}
+        }), smoke(smoke_mode), synthetic(synthetic_mode), unattended(unattended_mode), recovery(recovery_mode), recovery_index(recovery_seat) {}
     ~Application() {
         cursor.release();
         router.release_all();
@@ -254,7 +257,7 @@ public:
                 status += L"\nAutoteste: fixtures fixas na VM; o foco do host não é exigido.";
             else if (waiting_foreground_reported && !sent_synthetic)
                 status += L"\nClique em um destes painéis para permitir o envio do teste.";
-            if (recovery) status += L"\nRecuperação sintética: desconecta e reconecta somente o posto 1.";
+            if (recovery) status += L"\nRecuperação sintética: desconecta e reconecta somente o posto " + std::to_wstring(recovery_index + 1) + L".";
         }
         else if (!router.ready()) {
             const SeatInput& seat = router.seat(view.index);
@@ -362,6 +365,7 @@ public:
         invalidate();
     }
     void tick_recovery(ULONGLONG now) {
+        const unsigned peer = 1 - recovery_index;
         switch (recovery_phase) {
         case RecoveryPhase::Initial:
             if (now - started >= 120000) throw std::runtime_error("Recovery preparation timed out.");
@@ -371,28 +375,29 @@ public:
                 // editors during this delay. This mode never registers Raw Input.
                 recovery_phase = RecoveryPhase::PeerOffline;
                 recovery_phase_since = now;
-                disconnect(0);
-                if (!connected(1)) throw std::runtime_error("Recovery peer was lost.");
-                send_fixture(1);
+                disconnect(recovery_index);
+                if (!connected(peer)) throw std::runtime_error("Recovery peer was lost.");
+                send_fixture(peer);
                 recovery_phase_since = GetTickCount64();
-                std::cout << "RECOVERY: seat1 disconnected; seat2 fixture sent; guest observation required." << std::endl;
+                std::cout << "RECOVERY: seat" << recovery_index + 1 << " disconnected; seat" << peer + 1
+                    << " fixture sent; guest observation required." << std::endl;
             }
             break;
         case RecoveryPhase::PeerOffline:
             if (now - recovery_phase_since >= 20000) {
-                restart(0);
+                restart(recovery_index);
                 recovery_phase = RecoveryPhase::Reconnecting;
                 recovery_phase_since = GetTickCount64();
-                std::cout << "RECOVERY: reconnecting seat1; seat2 retained." << std::endl;
+                std::cout << "RECOVERY: reconnecting seat" << recovery_index + 1 << "; seat" << peer + 1 << " retained." << std::endl;
             }
             break;
         case RecoveryPhase::Reconnecting:
             if (now - recovery_phase_since >= 60000) throw std::runtime_error("Recovery reconnection timed out.");
             if (both_connected()) {
-                click_fixture_editor(0);
+                click_fixture_editor(recovery_index);
                 recovery_phase = RecoveryPhase::PreparingEditor;
                 recovery_phase_since = now;
-                std::cout << "RECOVERY: seat1 reconnected; editor preparation; guest preflight required." << std::endl;
+                std::cout << "RECOVERY: seat" << recovery_index + 1 << " reconnected; editor preparation; guest preflight required." << std::endl;
             }
             break;
         case RecoveryPhase::PreparingEditor:
@@ -401,11 +406,11 @@ public:
             // during this window and abort if its focus or identity is wrong.
             if (now - recovery_phase_since >= 10000) {
                 if (!both_connected()) throw std::runtime_error("Recovery input readiness was lost.");
-                send_fixture_keys(0);
+                send_fixture_keys(recovery_index);
                 sent_synthetic = true;
                 synthetic_sent_at = now;
                 recovery_phase = RecoveryPhase::Finished;
-                std::cout << "RECOVERY: seat1 fixture sent after reconnect; guest observation required." << std::endl;
+                std::cout << "RECOVERY: seat" << recovery_index + 1 << " fixture sent after reconnect; guest observation required." << std::endl;
             }
             break;
         case RecoveryPhase::Finished:
@@ -435,7 +440,7 @@ public:
                     std::cout << "RDP seat " << i + 1 << " unavailable; state=" << static_cast<int>(state)
                         << " code=" << transports[i]->error_code() << " " << transports[i]->diagnostics() << std::endl;
                 }
-                const bool expected_disconnect = recovery && i == 0 && recovery_phase == RecoveryPhase::PeerOffline;
+                const bool expected_disconnect = recovery && i == recovery_index && recovery_phase == RecoveryPhase::PeerOffline;
                 if (synthetic && !expected_disconnect) { close(1); return; }
             }
         }
@@ -604,32 +609,19 @@ int wmain(int argc, wchar_t** argv) {
         // This scope outlives every Application/Transport created below, so
         // worker threads and RDP contexts are gone before WSACleanup runs.
         SocketRuntime sockets;
-        bool smoke = false, self_test = false, synthetic = false, check_config = false, unattended = false, recovery = false;
-        std::wstring path;
-        for (int i = 1; i < argc; ++i) {
-            const std::wstring argument(argv[i]);
-            if (argument == L"--smoke") smoke = true;
-            else if (argument == L"--self-test") self_test = true;
-            else if (argument == L"--transport-check") synthetic = true;
-            else if (argument == L"--unattended-fixtures") unattended = true;
-            else if (argument == L"--recovery-cycle") recovery = true;
-            else if (argument == L"--check-config") check_config = true;
-            else if (argument == L"--config" && i + 1 < argc) path = argv[++i];
-            else throw std::runtime_error("Usage: ms-rds-lab-client [--config local.json] [--check-config|--transport-check [--unattended-fixtures [--recovery-cycle]]|--smoke|--self-test]");
-        }
-        if (static_cast<int>(smoke) + self_test + synthetic + check_config > 1 ||
-            ((smoke || self_test) && !path.empty()) || (unattended && !synthetic) || (recovery && (!synthetic || !unattended)))
-            throw std::runtime_error("Conflicting command options.");
-        if (self_test) result = run_self_tests() ? 0 : 1;
+        std::vector<std::wstring> arguments;
+        for (int i = 1; i < argc; ++i) arguments.emplace_back(argv[i]);
+        const Options options = parse_options(arguments);
+        if (options.self_test) result = run_self_tests() ? 0 : 1;
         else {
             if (!Transport::library_smoke()) throw std::runtime_error("FreeRDP context smoke failed.");
-            if (smoke) {
+            if (options.smoke) {
                 Application application(smoke_config(), true, false);
                 result = application.run();
                 if (result == 0) std::cout << "PASS: two local views and FreeRDP contexts; no connection or Raw Input registration.\n";
             } else {
-                Config config = load_config(path.empty() ? default_config_path() : path);
-                if (check_config) {
+                Config config = load_config(options.path.empty() ? default_config_path() : options.path);
+                if (options.check_config) {
                     for (const SeatConfig& seat : config.seats) {
                         auto password = unprotect_password(seat.password_dpapi);
                         SecureZeroMemory(password.data(), password.size());
@@ -641,9 +633,9 @@ int wmain(int argc, wchar_t** argv) {
                         throw std::runtime_error("Cannot enable bounded numeric TLS diagnostics.");
                     std::cout << "Windows Server lab only. Two RDP contexts; no host session, service or driver changes.\n";
                     std::cout << "F6 pairs keyboards, right clicks pair mice; F7 retries unavailable seats, F8 resets, F9 disconnects the paired seat, F12 closes both. Host focus loss pauses input.\n";
-                    if (unattended)
+                    if (options.unattended)
                         std::cout << "UNATTENDED: fixed VM fixtures after 30 seconds with both frames; host focus is not required. Verify the owned guest Notepads before sending." << std::endl;
-                    Application application(std::move(config), false, synthetic, unattended, recovery);
+                    Application application(std::move(config), false, options.synthetic, options.unattended, options.recovery, options.recovery_index);
                     result = application.run();
                 }
             }
