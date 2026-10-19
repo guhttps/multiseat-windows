@@ -40,6 +40,7 @@ Administração do convidado por [PowerShell Direct](https://learn.microsoft.com
 | Desconexão e reconexão do transporte de um posto | Passou em ciclo sintético: o outro recebeu texto durante a desconexão; os mesmos aplicativos e sessões foram preservados após reconectar; encerramento com código zero |
 | Recuperação de transporte com periféricos físicos | Confirmada pelo usuário nos dois sentidos; registros disponíveis mostram desconexão do posto 1 e continuidade de entrada no posto 2. Conferência automatizada da sequência completa pendente |
 | Remoção e reconexão de periféricos | Fixtures offline passaram nos dois sentidos; primeira retirada física de teclado com continuidade no posto oposto confirmada pelo usuário e contagens compatíveis. Preservação completa das associações e reconexão física ainda em conferência |
+| Observação automática de cinco minutos | Passou em 22 amostras durante 303 segundos: duas sessões ativas, mesmos aplicativos com propriedade verificada e duas janelas locais responsivas; sem interação contínua ou medição de latência |
 | Bloqueio e UAC | Pendentes; o ciclo sintético não aprova esses cenários |
 
 Relatórios brutos, endereços, SIDs, certificados, identificadores e credenciais ficam somente em `docs/lab/results/` e `build/`, ignorados pelo Git. A evidência pública deve limitar-se a procedimento, resultado, limitações e booleanos revisados, sem anexar os arquivos brutos ou capturas do desktop pessoal.
@@ -75,6 +76,16 @@ O roteador foi alterado para que a remoção de um periférico libere somente as
 Na primeira retirada física do teclado do posto 1, o usuário informou que conseguiu acrescentar uma letra no posto 2, mantendo o posto 1 inalterado. O coletor verificou os mesmos processos, proprietários e sessões ativos, com aumento apenas da contagem limitada do documento do posto 2. Uma captura posterior dos cabeçalhos encontrou todas as associações liberadas; a relação desse estado com a etapa de retorno ao host ainda está em conferência. Portanto, esse ensaio comprova apenas a continuidade observada da digitação, sem aprovar a preservação completa das associações ou o ciclo de reconexão. Os relatórios e as imagens continuam privados.
 
 A revisão identificou que retirar o registro de Raw Input ao perder foco também suspendia os avisos de desconexão. O cliente passou a manter `RIDEV_DEVNOTIFY` durante a pausa, sem `RIDEV_INPUTSINK`, `RIDEV_EXINPUTSINK` ou roteamento em segundo plano. Somente a remoção aposenta uma associação. Um ensaio local em janela oculta verificou que atualizar as flags de registro repete chegadas dos dispositivos já presentes; tratar essas chegadas como remoções apagaria os pares ao trocar de foco. As fixtures agora cobrem essa preservação, além das transições de registro, falhas e limpeza. O ensaio não retirou hardware nem recebeu entrada em segundo plano; a prova física da mudança continua pendente.
+
+## Observação automática de estabilidade
+
+Uma execução com a revisão `95f3f44` observou o cliente normal durante 303 segundos, em 22 amostras. Cada coleta exigiu relatórios recentes, os mesmos processos e sessões de contas distintas, propriedade e controles dos dois Notepads válidos, ambas as sessões ativas e resposta das duas janelas locais a uma consulta limitada. O controlador não digitou texto nem registrou seu conteúdo. O cliente foi encerrado depois da observação, com código zero.
+
+As amostras registraram entre 14 e 15 objetos GDI; a contagem de handles passou de 320 na primeira para 317 na última amostra. Esses números são observações dessa execução e não comprovam ausência de vazamentos em uso prolongado. O resultado também não mede atualização contínua da imagem, FPS ou latência e não aprova P01 no motor nativo.
+
+Na mesma revisão, o ciclo `--transport-check --unattended-fixtures --recovery-cycle` passou novamente após preparar dois editores vazios. O coletor confirmou a fixture do posto 2 enquanto o posto 1 estava desconectado, revalidou o editor reconectado antes das teclas e confirmou as duas fixtures exatas nos mesmos aplicativos. O cliente terminou com código zero e stderr vazio.
+
+Um ensaio separado e local verificou a identidade de quatro dispositivos de entrada individuais, em contêineres USB distintos, e preservou suas associações de teste durante mudanças reais das flags de registro. Esse preparo usou entrada sintética somente no roteador, sem encaminhá-la ao sistema ou aos aplicativos. Nenhum dispositivo foi desativado nessa etapa; ela não substitui o teste de remoção e reconexão.
 
 ## Critério de conclusão
 
