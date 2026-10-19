@@ -4,9 +4,11 @@
 #include <string>
 
 namespace rds_lab {
+enum class HotplugKind { None, Keyboard, Mouse };
 struct Options {
     bool smoke{}, self_test{}, synthetic{}, check_config{}, unattended{}, recovery{}, close_view_recovery{};
     unsigned recovery_index{};
+    HotplugKind router_hotplug = HotplugKind::None;
     std::wstring path;
 };
 inline Options parse_options(std::span<const std::wstring> arguments) {
@@ -21,6 +23,14 @@ inline Options parse_options(std::span<const std::wstring> arguments) {
         else if (argument == L"--recovery-cycle") result.recovery = true;
         else if (argument == L"--close-view-recovery") result.close_view_recovery = true;
         else if (argument == L"--check-config") result.check_config = true;
+        else if (argument == L"--router-hotplug") {
+            if (result.router_hotplug != HotplugKind::None || i + 1 >= arguments.size())
+                throw std::runtime_error("A single router hotplug device kind is required.");
+            const auto& kind = arguments[++i];
+            if (kind != L"keyboard" && kind != L"mouse")
+                throw std::runtime_error("Router hotplug kind must be keyboard or mouse.");
+            result.router_hotplug = kind == L"keyboard" ? HotplugKind::Keyboard : HotplugKind::Mouse;
+        }
         else if (argument == L"--recovery-seat") {
             if (recovery_seat_given || i + 1 >= arguments.size())
                 throw std::runtime_error("A single recovery seat, 1 or 2, is required.");
@@ -35,8 +45,11 @@ inline Options parse_options(std::span<const std::wstring> arguments) {
     }
     if (static_cast<int>(result.smoke) + result.self_test + result.synthetic + result.check_config > 1 ||
         ((result.smoke || result.self_test) && !result.path.empty()) || (result.unattended && !result.synthetic) ||
-        (result.recovery && (!result.synthetic || !result.unattended)) || (recovery_seat_given && !result.recovery) ||
-        (result.close_view_recovery && !result.recovery))
+        (result.recovery && (!result.synthetic || !result.unattended)) ||
+        (recovery_seat_given && !result.recovery && result.router_hotplug == HotplugKind::None) ||
+        (result.close_view_recovery && !result.recovery) ||
+        (result.router_hotplug != HotplugKind::None &&
+            (!result.synthetic || !result.unattended || result.recovery || result.close_view_recovery)))
         throw std::runtime_error("Conflicting command options.");
     return result;
 }

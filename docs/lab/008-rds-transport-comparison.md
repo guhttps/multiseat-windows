@@ -38,9 +38,10 @@ Administração do convidado por [PowerShell Direct](https://learn.microsoft.com
 | Digitação com os teclados físicos | Confirmada visualmente pelo usuário; contadores registraram encaminhamento nos dois postos sem teclas sem rota. Conferência automatizada dos textos exatos ainda pendente |
 | Troca de aplicativo enquanto o outro posto mantém digitação | Confirmada pelo usuário nos dois sentidos; conferência qualitativa, sem a contagem quantitativa de P02 |
 | Desconexão e reconexão do transporte de um posto | Passou em ciclo sintético: o outro recebeu texto durante a desconexão; os mesmos aplicativos e sessões foram preservados após reconectar; encerramento com código zero |
-| Fechamento de um painel e saída pelo último | Passou nos dois sentidos: peer preservado no modo normal, saída com código zero ao fechar o último e reabertura sintética com os mesmos HWNDs e aplicativos. F7 em segundo plano recusado; reabertura por teclado físico ainda pendente |
+| Fechamento de um painel e saída pelo último | Passou nos dois sentidos: peer preservado, reabertura sintética e por F7 físico com os mesmos HWNDs e aplicativos. A rodada física confirmou digitação antes/depois e zero resets F8; cliente terminou com código zero. F7 em segundo plano recusado |
 | Recuperação de transporte com periféricos físicos | Confirmada pelo usuário nos dois sentidos; registros disponíveis mostram desconexão do posto 1 e continuidade de entrada no posto 2. Conferência automatizada da sequência completa pendente |
 | Remoção e reconexão de periféricos | Fixtures offline passaram nos dois sentidos; primeira retirada física de teclado com continuidade no posto oposto confirmada pelo usuário e contagens compatíveis. Preservação completa das associações e reconexão física ainda em conferência |
+| Remoção/reassociação simuladas com aplicativos externos | Quatro rodadas automáticas passaram: teclado e mouse em cada posto, roteador de produção, transporte RDP e textos exatos nos mesmos Notepads. Janelas ocultas, sem Raw Input ou mudanças PnP; quatro encerramentos limpos e limpeza. Não substitui o ciclo com cabos |
 | Desativação e reativação de mouses por PnP | Passou nos dois postos, com avisos reais do Windows e fixtures sintéticas no roteador de produção; par intacto preservado e reassociação explícita exigida. Todos os dispositivos selecionados reabilitados; teste com cabos e aplicativos externos ainda pendente |
 | Observação automática de cinco minutos | Passou em 22 amostras durante 303 segundos: duas sessões ativas, mesmos aplicativos com propriedade verificada e duas janelas locais responsivas; sem interação contínua ou medição de latência |
 | Observação estendida anterior ao fechamento independente | Passou na revisão `737c6ff`: 912 segundos, 76 amostras, sessões e aplicativos preservados, janelas responsivas, encerramento limpo e limpeza das sessões fictícias |
@@ -88,9 +89,31 @@ O ensaio `--close-view-recovery`, junto do ciclo sintético completo, passou sep
 
 A tentativa inicial enviou as teclas do posto sobrevivente imediatamente após seu clique e observou somente parte do texto. O ciclo passou após acrescentar dez segundos entre esse clique e as teclas, com nova conferência externa de identidade, documento vazio, foco e ponto de clique. Esse resultado trata da preparação do teste sintético; não identifica, isoladamente, a causa das teclas ausentes nem aprova a interação física.
 
-Um ensaio adicional sem digitação exerceu o modo normal nas duas ordens de fechamento. Confirmou continuidade do posto oposto, preservação dos aplicativos e encerramento com código zero ao fechar o último painel. O comando F7 dirigido ao painel em segundo plano manteve o posto fechado, respeitando a regra de foco. A reabertura por teclado físico com o frontend ativo continua pendente. O smoke offline também exercita fechamento repetido, reabertura e saída pela última janela oculta, sem registrar entrada ou conectar à VM.
+Um ensaio adicional sem digitação exerceu o modo normal nas duas ordens de fechamento. Confirmou continuidade do posto oposto, preservação dos aplicativos e encerramento com código zero ao fechar o último painel. O comando F7 dirigido ao painel em segundo plano manteve o posto fechado, respeitando a regra de foco. A reabertura física foi validada posteriormente na rodada abaixo. O smoke offline também exercita fechamento repetido, reabertura e saída pela última janela oculta, sem registrar entrada ou conectar à VM.
+
+### Fechamento e reabertura com periféricos físicos
+
+Uma rodada separada da revisão `295c70a` partiu de dois editores vazios e quatro dispositivos associados. O controlador fechou apenas o painel escolhido; o usuário executou F7, cliques e digitação com os periféricos físicos. Sete fases exigiram atualizações sucessivas dos observadores, os mesmos processos, proprietários, sessões e HWNDs, os estados de conexão esperados e zero resets por F8. O usuário confirmou a sequência; os coletores conferiram as mudanças de tamanho e as imagens das próprias janelas confirmaram os textos após cada reabertura.
+
+| Etapa | Posto 1 | Posto 2 |
+|---|---|---|
+| Preparação | Ativo, vazio | Ativo, vazio |
+| Painel 2 fechado; digitação no restante | Ativo, `1` | Desconectado, vazio |
+| F7 no teclado 1; digitação no reaberto | Ativo, `1` | Ativo, `2` |
+| Painel 1 fechado; digitação no restante | Desconectado, `1` | Ativo, `2b` |
+| F7 no teclado 2; digitação no reaberto | Ativo, `1a` | Ativo, `2b` |
+
+Não houve reassociação nessa sequência. O cliente encerrou depois com código zero e stderr vazio; os relatórios foram preservados antes da limpeza das contas fictícias. Essa prova funcional distingue-se das fixtures de dez caracteres e não mede contagem quantitativa de eventos, FPS, latência, hotplug físico ou o motor nativo. Os resultados brutos e as imagens continuam privados.
 
 O roteador foi alterado para que a remoção de um periférico libere somente as entradas do posto afetado. Ele preserva as associações e entradas mantidas pelo outro posto; o par incompleto aguarda reassociação explícita com F6 ou clique direito. Um reset por F8 ainda exige associar os quatro dispositivos novamente. As fixtures offline passaram com retirada de teclado e mouse nos dois sentidos, notificações duplicadas, IDs desconhecidos, continuidade do posto intacto e ausência de replay. Esse resultado não substitui o teste físico de hotplug.
+
+### Remoção/reassociação automática com transporte real
+
+O modo explícito `--router-hotplug keyboard|mouse`, junto de `--transport-check --unattended-fixtures` e `--recovery-seat 1|2`, passou nas quatro combinações usando o mesmo executável. Ele associa identificadores fictícios ao `InputRouter` de produção, mantém Shift ou o botão esquerdo do alvo e simula a remoção. Confere a liberação da entrada mantida, preserva o outro par e descarta eventos antigos e entrada comum do par incompleto. Depois reassocia um novo identificador explicitamente. As fixtures fixas seguem pelo roteador e transporte RDP reais até os dois Notepads externos.
+
+Cada rodada exigiu cinco conferências externas, preservando processos, proprietários, sessões e documentos. Três confirmações ASCII pelo stdin autorizaram as fases somente depois dos preflights: editores inicialmente vazios; texto exato apenas no posto intacto durante a remoção; e ambos com a fixture correta após reassociar. Antes das teclas, foco do editor e ponto do clique foram revalidados após pelo menos dez segundos de preparo. O cliente limita o tamanho e a ordem das confirmações, recusa ausência de pipe e encerra se perder a prontidão depois de pedir o preflight.
+
+Os quatro clientes permaneceram com janelas ocultas, sem registrar Raw Input, capturar o cursor, ativar janelas do host ou modificar PnP. Todos encerraram com código zero e stderr vazio; os guardas independentes terminaram e as sessões fictícias foram limpas. Os 14 testes locais passaram, incluindo combinações de argumentos, invariantes do roteador e rejeição de confirmações inválidas. Hashes do executável, dos cinco arquivos de código e dos recibos vincularam as quatro rodadas; os dados brutos continuam privados. Essa evidência cobre a remoção simulada no software e a entrega real aos aplicativos. Não aprova retirada/reconexão de cabos, áudio, jogos ou o motor nativo.
 
 Na primeira retirada física do teclado do posto 1, o usuário informou que conseguiu acrescentar uma letra no posto 2, mantendo o posto 1 inalterado. O coletor verificou os mesmos processos, proprietários e sessões ativos, com aumento apenas da contagem limitada do documento do posto 2. Uma captura posterior dos cabeçalhos encontrou todas as associações liberadas; a relação desse estado com a etapa de retorno ao host ainda está em conferência. Portanto, esse ensaio comprova apenas a continuidade observada da digitação, sem aprovar a preservação completa das associações ou o ciclo de reconexão. Os relatórios e as imagens continuam privados.
 

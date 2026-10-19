@@ -5,10 +5,14 @@
 #include "cursor-lease.h"
 #include "ssl-diagnostics.h"
 #include "options.h"
+#include "router-hotplug.h"
+#include "fixture-control.h"
 #include <wincrypt.h>
 #include <bcrypt.h>
 #include <ncrypt.h>
 #include <array>
+#include <algorithm>
+#include <cstddef>
 #include <functional>
 #include <iostream>
 #include <stdexcept>
@@ -35,6 +39,13 @@ void option_tests() {
     }
     require(parse({ L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle" }).recovery_index == 0);
     require(parse({ L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--close-view-recovery", L"--recovery-seat", L"2" }).close_view_recovery);
+    for (const std::wstring kind : {L"keyboard", L"mouse"}) for (const std::wstring seat : {L"1", L"2"}) {
+        const auto option = parse({L"--transport-check", L"--unattended-fixtures", L"--router-hotplug", kind, L"--recovery-seat", seat});
+        require(option.synthetic && option.unattended && !option.recovery && !option.close_view_recovery &&
+            option.router_hotplug == (kind == L"keyboard" ? HotplugKind::Keyboard : HotplugKind::Mouse) &&
+            option.recovery_index == (seat == L"1" ? 0U : 1U));
+    }
+    require(parse({L"--transport-check", L"--unattended-fixtures", L"--router-hotplug", L"keyboard"}).recovery_index == 0);
     for (const auto& values : std::vector<std::vector<std::wstring>>{
         {L"--recovery-seat", L"2"}, {L"--transport-check", L"--recovery-cycle"},
         {L"--close-view-recovery"}, {L"--transport-check", L"--unattended-fixtures", L"--close-view-recovery"},
@@ -46,8 +57,91 @@ void option_tests() {
         {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--recovery-seat", L"3"},
         {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--recovery-seat", L"-1"},
         {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--recovery-seat", L"02"},
-        {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--recovery-seat", L"1", L"--recovery-seat", L"2"}})
+        {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--recovery-seat", L"1", L"--recovery-seat", L"2"},
+        {L"--router-hotplug", L"keyboard"},
+        {L"--transport-check", L"--router-hotplug", L"keyboard"},
+        {L"--unattended-fixtures", L"--router-hotplug", L"mouse"},
+        {L"--transport-check", L"--unattended-fixtures", L"--router-hotplug"},
+        {L"--transport-check", L"--unattended-fixtures", L"--router-hotplug", L"other"},
+        {L"--transport-check", L"--unattended-fixtures", L"--router-hotplug", L"keyboard", L"--router-hotplug", L"mouse"},
+        {L"--transport-check", L"--unattended-fixtures", L"--router-hotplug", L"keyboard", L"--recovery-cycle"},
+        {L"--transport-check", L"--unattended-fixtures", L"--router-hotplug", L"mouse", L"--close-view-recovery"},
+        {L"--transport-check", L"--unattended-fixtures", L"--router-hotplug", L"mouse", L"--recovery-seat", L"3"},
+        {L"--smoke", L"--router-hotplug", L"keyboard"},
+        {L"--check-config", L"--router-hotplug", L"mouse"}})
         rejects([&] { parse_options(values); });
+}
+void fixture_control_tests() {
+    FixtureControlBuffer buffer;
+    const auto feed = [&](std::string_view text) { buffer.feed(std::span<const char>(text.data(), text.size())); };
+    require(!buffer.consume("preflight"));
+    feed("pref"); require(!buffer.consume("preflight"));
+    feed("light\r\n"); require(buffer.consume("preflight") && buffer.size() == 0);
+    feed("peer\n"); require(buffer.consume("peer"));
+    feed("restored\n"); require(buffer.consume("restored"));
+    for (const std::string text : {"preflight\npeer\n", "other\n", "peer\n\n", "\n", "restored\r\r\n"}) {
+        FixtureControlBuffer invalid;
+        invalid.feed(std::span<const char>(text.data(), text.size()));
+        rejects([&] { invalid.consume("preflight"); });
+    }
+    for (const std::string text : {std::string("preflight\0\n", 11), std::string("PEER\n"), std::string(33, 'a')}) {
+        FixtureControlBuffer invalid;
+        rejects([&] { invalid.feed(std::span<const char>(text.data(), text.size())); });
+    }
+}
+void router_hotplug_fixture_tests() {
+    for (const auto kind : {HotplugKind::Keyboard, HotplugKind::Mouse}) for (unsigned target = 0; target < 2; ++target) {
+        std::vector<std::pair<unsigned, InputEvent>> events;
+        InputRouter router({std::pair{1280U, 720U}, std::pair{1280U, 720U}},
+            [&](unsigned index, const InputEvent& event) { events.emplace_back(index, event); });
+        rejects([&] { RouterHotplugFixture bad(router, HotplugKind::None, target); });
+        rejects([&] { RouterHotplugFixture bad(router, kind, 2); });
+        RouterHotplugFixture fixture(router, kind, target);
+        rejects([&] { fixture.hold_and_remove(); });
+        rejects([&] { fixture.reassociate(); });
+        rejects([&] { fixture.type_fixture(target); });
+        fixture.pair();
+        require(events.empty() && router.ready());
+        const auto peer = router.seat(1 - target);
+        const auto mate = kind == HotplugKind::Keyboard ? router.seat(target).mouse : router.seat(target).keyboard;
+        fixture.hold_and_remove();
+        require(!router.routable(target) && router.routable(1 - target) &&
+            router.seat(1 - target).keyboard == peer.keyboard && router.seat(1 - target).mouse == peer.mouse &&
+            (kind == HotplugKind::Keyboard ? router.seat(target).mouse : router.seat(target).keyboard) == mate);
+        require(events.size() == (kind == HotplugKind::Keyboard ? 2U : 3U));
+        require(events.back().first == target && !events.back().second.down &&
+            (kind == HotplugKind::Keyboard ? events.back().second.kind == EventKind::Key && events.back().second.code == 0x2A :
+                events.back().second.kind == EventKind::Button && events.back().second.code == 0));
+        const auto removed_count = events.size();
+        fixture.probe_retired(); require(events.size() == removed_count);
+        rejects([&] { fixture.type_fixture(target); });
+        const auto verify_fixture = [&](unsigned seat, size_t begin) {
+            constexpr unsigned prefix[] = {0x13, 0x20, 0x19, 0x0C, 0x1F, 0x12, 0x1E, 0x14, 0x0C};
+            const auto first = events.begin() + static_cast<std::ptrdiff_t>(begin);
+            require(std::all_of(first, events.end(), [seat](const auto& entry) { return entry.first == seat; }));
+            std::vector<InputEvent> keys;
+            for (auto entry = first; entry != events.end(); ++entry)
+                if (entry->second.kind == EventKind::Key) keys.push_back(entry->second);
+            require(keys.size() == 20);
+            for (unsigned i = 0; i < 10; ++i) {
+                const unsigned expected = i < 9 ? prefix[i] : seat == 0 ? 0x1E : 0x30;
+                require(keys[2*i].code == expected && keys[2*i].down && !keys[2*i].repeat &&
+                    keys[2*i+1].code == expected && !keys[2*i+1].down);
+            }
+            require(router.seat(seat).held_keys.empty() && router.seat(seat).held_buttons == 0);
+        };
+        fixture.click_editor(1 - target); fixture.type_fixture(1 - target);
+        verify_fixture(1 - target, removed_count);
+        const auto restored_count = events.size();
+        fixture.reassociate();
+        require(events.size() == restored_count && router.ready() && router.routable(target));
+        fixture.probe_retired(); require(events.size() == restored_count);
+        fixture.click_editor(target); fixture.type_fixture(target);
+        verify_fixture(target, restored_count);
+        rejects([&] { fixture.reassociate(); });
+        rejects([&] { fixture.hold_and_remove(); });
+        rejects([&] { fixture.pair(); });
+    }
 }
 std::wstring fixture() {
     return LR"({"schema_version":1,"server_address":"10.73.12.2","server_port":3389,
@@ -538,6 +632,8 @@ bool run_self_tests() {
         std::cout << "PASS: Winsock 2.2 and numeric IPv4 getaddrinfo; no DNS or socket connection.\n";
         configuration_tests(); std::cout << "PASS: strict local configuration and UTF-8 policy.\n";
         option_tests(); std::cout << "PASS: explicit synthetic recovery in either direction and unsafe mode combinations rejected.\n";
+        router_hotplug_fixture_tests(); std::cout << "PASS: synthetic hotplug fixtures use the production router, release held input, preserve the peer and reject retired devices.\n";
+        fixture_control_tests(); std::cout << "PASS: bounded ordered controller acknowledgements, fragmented reads and invalid payload rejection.\n";
         dpapi_tests(); std::cout << "PASS: current-user DPAPI round trip and malformed/invalid payload rejection.\n";
         ssl_diagnostic_tests(); std::cout << "PASS: bounded TLS diagnostic parser returns numeric codes only.\n";
         certificate_tests(); std::cout << "PASS: ephemeral certificate SHA-256 leaf pin and mismatch rejection.\n";

@@ -5,6 +5,8 @@
 #include "cursor-lease.h"
 #include "transport.h"
 #include "options.h"
+#include "router-hotplug.h"
+#include "fixture-control.h"
 #include "../common/raw-input.h"
 #include <roapi.h>
 #include <array>
@@ -113,6 +115,7 @@ bool terminal_state(TransportState state) {
 class Application {
 public:
     enum class RecoveryPhase { Initial, PreparingPeer, PeerOffline, Reconnecting, PreparingEditor, Finished };
+    enum class HotplugPhase { Initial, PreparingPeer, PeerOnly, PreparingRestored, Finished };
     Config config;
     std::array<View, 2> views{};
     std::array<bool, 2> view_open{true, true};
@@ -130,12 +133,18 @@ public:
     unsigned recovery_index = 0;
     RecoveryPhase recovery_phase = RecoveryPhase::Initial;
     ULONGLONG recovery_phase_since = 0;
+    HotplugKind hotplug_kind = HotplugKind::None;
+    HotplugPhase hotplug_phase = HotplugPhase::Initial;
+    ULONGLONG hotplug_phase_since = 0;
+    std::unique_ptr<RouterHotplugFixture> hotplug_fixture;
+    std::unique_ptr<FixtureControl> hotplug_control;
+    bool hotplug_preflight_requested = false;
     bool sent_synthetic = false, waiting_foreground_reported = false;
     ULONGLONG started = 0, connected_since = 0, synthetic_sent_at = 0;
     std::array<std::string, 2> last_progress;
     int result = 0;
     Application(Config source, bool smoke_mode, bool synthetic_mode, bool unattended_mode = false, bool recovery_mode = false,
-        unsigned recovery_seat = 0, bool close_view_mode = false)
+        unsigned recovery_seat = 0, bool close_view_mode = false, HotplugKind hotplug_mode = HotplugKind::None)
         : config(std::move(source)), router(sizes(config), [this](unsigned seat, const InputEvent& event) {
             if (transports[seat]) {
                 if (transports[seat]->enqueue(event)) {
@@ -144,7 +153,14 @@ public:
                 } else if (transports[seat]->state() == TransportState::Connected) send_failed[seat] = true;
             }
         }), smoke(smoke_mode), synthetic(synthetic_mode), unattended(unattended_mode), recovery(recovery_mode),
-            close_view_recovery(close_view_mode), recovery_index(recovery_seat) {}
+            close_view_recovery(close_view_mode), recovery_index(recovery_seat), hotplug_kind(hotplug_mode) {
+        if (hotplug_kind != HotplugKind::None) {
+            if (!synthetic || !unattended || recovery || close_view_recovery || smoke)
+                throw std::runtime_error("Router hotplug requires the exclusive unattended synthetic mode.");
+            hotplug_fixture = std::make_unique<RouterHotplugFixture>(router, hotplug_kind, recovery_index);
+            hotplug_control = std::make_unique<FixtureControl>();
+        }
+    }
     ~Application() {
         cursor.release();
         router.release_all();
@@ -566,6 +582,78 @@ public:
             break;
         }
     }
+    void tick_router_hotplug(ULONGLONG now) {
+        // Only this explicit synthetic mode uses fabricated device handles.
+        // The physical foreground gate and real Raw Input remain unchanged.
+        if (!hotplug_fixture || !hotplug_control || !synthetic || !unattended || capture ||
+            registration.mode() != RegistrationMode::None ||
+            IsWindowVisible(views[0].window) || IsWindowVisible(views[1].window))
+            throw std::runtime_error("Router hotplug crossed its hidden synthetic boundary.");
+        if (send_failed[0] || send_failed[1]) throw std::runtime_error("Router hotplug transport queue failed.");
+        if (hotplug_phase != HotplugPhase::Initial && !both_connected())
+            throw std::runtime_error("Router hotplug lost an owned connection.");
+        const unsigned peer = 1 - recovery_index;
+        switch (hotplug_phase) {
+        case HotplugPhase::Initial:
+            if (now - started >= 120000) throw std::runtime_error("Router hotplug preparation timed out.");
+            if (!both_connected()) {
+                if (hotplug_preflight_requested) throw std::runtime_error("Router preflight readiness was lost.");
+                connected_since = 0; break;
+            }
+            if (!connected_since) connected_since = now;
+            if (now - connected_since >= 30000) {
+                if (!hotplug_preflight_requested) {
+                    hotplug_preflight_requested = true;
+                    std::cout << "ROUTER-HOTPLUG: preflight requested; controller acknowledgement required." << std::endl;
+                }
+                if (!hotplug_control->poll("preflight")) break;
+                // The controller must first validate the two empty owned
+                // editors. Removal releases the target's held Shift/button.
+                hotplug_fixture->pair();
+                hotplug_fixture->hold_and_remove();
+                hotplug_fixture->click_editor(peer);
+                hotplug_phase = HotplugPhase::PreparingPeer;
+                hotplug_phase_since = GetTickCount64();
+                std::cout << "ROUTER-HOTPLUG: removed kind=" << static_cast<unsigned>(hotplug_kind)
+                    << " seat=" << recovery_index + 1 << "; peer editor preparation; guest preflight required." << std::endl;
+            }
+            break;
+        case HotplugPhase::PreparingPeer:
+            if (now - hotplug_phase_since >= 60000) throw std::runtime_error("Peer preflight acknowledgement timed out.");
+            if (now - hotplug_phase_since >= 10000 && hotplug_control->poll("peer")) {
+                hotplug_fixture->type_fixture(peer);
+                if (send_failed[peer]) throw std::runtime_error("Router peer fixture was not queued.");
+                hotplug_phase = HotplugPhase::PeerOnly;
+                hotplug_phase_since = GetTickCount64();
+                std::cout << "ROUTER-HOTPLUG: peer fixture sent; target pair incomplete; guest observation required." << std::endl;
+            }
+            break;
+        case HotplugPhase::PeerOnly:
+            if (now - hotplug_phase_since >= 20000) {
+                hotplug_fixture->reassociate();
+                hotplug_fixture->click_editor(recovery_index);
+                hotplug_phase = HotplugPhase::PreparingRestored;
+                hotplug_phase_since = GetTickCount64();
+                std::cout << "ROUTER-HOTPLUG: reassociated seat=" << recovery_index + 1
+                    << "; editor preparation; guest preflight required." << std::endl;
+            }
+            break;
+        case HotplugPhase::PreparingRestored:
+            if (now - hotplug_phase_since >= 60000) throw std::runtime_error("Restored preflight acknowledgement timed out.");
+            if (now - hotplug_phase_since >= 10000 && hotplug_control->poll("restored")) {
+                hotplug_fixture->type_fixture(recovery_index);
+                if (send_failed[recovery_index]) throw std::runtime_error("Restored router fixture was not queued.");
+                sent_synthetic = true;
+                hotplug_phase = HotplugPhase::Finished;
+                hotplug_phase_since = GetTickCount64();
+                std::cout << "ROUTER-HOTPLUG: both fixtures sent; guest observation required." << std::endl;
+            }
+            break;
+        case HotplugPhase::Finished:
+            if (now - hotplug_phase_since >= 45000) close(0);
+            break;
+        }
+    }
     void tick() {
         if (closing) return;
         const ULONGLONG now = GetTickCount64();
@@ -602,6 +690,7 @@ public:
             }
         }
         update_gate();
+        if (hotplug_kind != HotplugKind::None) { tick_router_hotplug(now); invalidate(); return; }
         if (recovery) { tick_recovery(now); invalidate(); return; }
         if (synthetic) {
             if (!sent_synthetic && now - started >= 120000)
@@ -657,7 +746,7 @@ public:
             views[i].index = i;
             const RECT rectangle = smoke ? RECT{ 0, 0, 800, 640 } : monitors[config.seats[i].monitor_index];
             const std::wstring title = L"Multiseat — laboratório RDP — posto " + std::to_wstring(i + 1);
-            views[i].window = CreateWindowExW(smoke ? WS_EX_NOACTIVATE : 0, window_class, title.c_str(),
+            views[i].window = CreateWindowExW(smoke || hotplug_kind != HotplugKind::None ? WS_EX_NOACTIVATE : 0, window_class, title.c_str(),
                 WS_OVERLAPPEDWINDOW, rectangle.left, rectangle.top, rectangle.right - rectangle.left,
                 rectangle.bottom - rectangle.top, nullptr, nullptr, GetModuleHandleW(nullptr), &views[i]);
             if (!views[i].window) throw std::runtime_error("Cannot create RDP lab view.");
@@ -686,9 +775,11 @@ public:
         started = GetTickCount64();
         if (!SetTimer(views[0].window, 1, 100, nullptr)) throw std::runtime_error("Cannot create lab gate timer.");
         if (!smoke) {
-            ShowWindow(views[1].window, SW_SHOWNOACTIVATE);
-            ShowWindow(views[0].window, SW_SHOW);
-            SetForegroundWindow(views[0].window);
+            if (hotplug_kind == HotplugKind::None) {
+                ShowWindow(views[1].window, SW_SHOWNOACTIVATE);
+                ShowWindow(views[0].window, SW_SHOW);
+                SetForegroundWindow(views[0].window);
+            }
             for (unsigned i = 0; i < transports.size(); ++i) {
                 attempt_started[i] = GetTickCount64();
                 transports[i]->start();
@@ -806,8 +897,10 @@ int wmain(int argc, wchar_t** argv) {
                     std::cout << "F6 pairs keyboards, right clicks pair mice; F7 retries unavailable seats, F8 resets, F9 disconnects the paired seat, F12 closes both. Host focus loss pauses input.\n";
                     if (options.unattended)
                         std::cout << "UNATTENDED: fixed VM fixtures after 30 seconds with both frames; host focus is not required. Verify the owned guest Notepads before sending." << std::endl;
+                    if (options.router_hotplug != HotplugKind::None)
+                        std::cout << "ROUTER-HOTPLUG: synthetic router devices; hidden views; no host Raw Input or PnP changes." << std::endl;
                     Application application(std::move(config), false, options.synthetic, options.unattended, options.recovery,
-                        options.recovery_index, options.close_view_recovery);
+                        options.recovery_index, options.close_view_recovery, options.router_hotplug);
                     result = application.run();
                 }
             }
