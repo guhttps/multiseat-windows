@@ -1,6 +1,7 @@
 #include "network.h"
 #include "config.h"
 #include "input-router.h"
+#include "input-registration.h"
 #include "cursor-lease.h"
 #include "transport.h"
 #include "../common/raw-input.h"
@@ -94,11 +95,12 @@ public:
     std::array<std::unique_ptr<Transport>, 2> transports;
     InputRouter router;
     CursorLease cursor;
+    InputRegistration registration;
     std::array<ULONGLONG, 2> routed_keys{}, routed_clicks{};
-    ULONGLONG unassigned_keys{};
+    ULONGLONG unassigned_keys{}, full_resets{};
     std::array<bool, 2> send_failed{}, timed_out{}, failure_reported{};
     std::array<ULONGLONG, 2> attempt_started{};
-    bool smoke = false, synthetic = false, unattended = false, closing = false, registered = false, capture = false;
+    bool smoke = false, synthetic = false, unattended = false, closing = false, capture = false;
     bool recovery = false;
     RecoveryPhase recovery_phase = RecoveryPhase::Initial;
     ULONGLONG recovery_phase_since = 0;
@@ -149,10 +151,7 @@ public:
         }
     }
     void unregister_input() {
-        if (!registered) return;
-        RAWINPUTDEVICE devices[] = { {1, 6, RIDEV_REMOVE, nullptr}, {1, 2, RIDEV_REMOVE, nullptr} };
-        if (!RegisterRawInputDevices(devices, 2, sizeof(RAWINPUTDEVICE))) result = 1;
-        registered = false;
+        if (!registration.release()) result = 1;
     }
     void report_input_counts() const {
         if (smoke || synthetic) return;
@@ -160,29 +159,28 @@ public:
             std::cout << "INPUT seat=" << i + 1 << " key_downs=" << routed_keys[i] <<
                 " left_clicks=" << routed_clicks[i] << std::endl;
         std::cout << "INPUT unassigned_key_downs=" << unassigned_keys << std::endl;
+        std::cout << "INPUT full_resets=" << full_resets << std::endl;
     }
     void update_gate() {
         if (smoke || synthetic || closing) return;
+        if (!views[0].window || !views[1].window) return;
         const bool enabled = foreground() && any_connected();
         if (!enabled && capture) { router.release_all(); report_input_counts(); }
         for (unsigned i = 0; i < transports.size(); ++i) router.set_enabled(i, enabled && connected(i));
         capture = enabled;
-        if (enabled && !registered) {
-            RAWINPUTDEVICE devices[] = {
-                {1, 6, RIDEV_NOLEGACY | RIDEV_DEVNOTIFY, views[0].window},
-                {1, 2, RIDEV_NOLEGACY | RIDEV_DEVNOTIFY, views[0].window}
-            };
-            if (!RegisterRawInputDevices(devices, 2, sizeof(RAWINPUTDEVICE)))
-                throw std::runtime_error("Raw Input registration failed.");
-            registered = true;
-        } else if (!enabled) unregister_input();
+        // Keep only device-change notifications while routing is paused.
+        // Neither mode enables INPUTSINK/EXINPUTSINK: host background typing
+        // is never requested, and raw() still checks the live foreground gate.
+        if (!registration.set(views[0].window, enabled))
+            throw std::runtime_error("Raw Input registration failed.");
         if (enabled && router.any_routable()) {
             RECT client{};
             const HWND active = GetForegroundWindow();
             if (active != views[0].window && active != views[1].window) {
                 capture = false;
                 router.release_all();
-                unregister_input();
+                if (!registration.set(views[0].window, false))
+                    throw std::runtime_error("Cannot pause Raw Input registration.");
                 if (!cursor.release()) throw std::runtime_error("Cannot release the owned host cursor capture.");
                 return;
             }
@@ -206,7 +204,10 @@ public:
         if (input.header.dwType == RIM_TYPEKEYBOARD) {
             const RAWKEYBOARD& key = input.data.keyboard;
             if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F12) { close(0); return; }
-            if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F8) { router.reset(); update_gate(); invalidate(); return; }
+            if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F8) {
+                ++full_resets;
+                router.reset(); report_input_counts(); update_gate(); invalidate(); return;
+            }
             if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F7) { retry_unavailable(); return; }
             if (!(key.Flags & RI_KEY_BREAK) && key.VKey == VK_F9) { disconnect_device(input.header.hDevice); return; }
             if (router.any_routable() && !(key.Flags & RI_KEY_BREAK) && key.VKey != VK_F6 &&
@@ -270,7 +271,8 @@ public:
         if (!smoke && !synthetic)
             status += L"\nTeclas encaminhadas: " + std::to_wstring(routed_keys[view.index]) +
                 L" | Cliques: " + std::to_wstring(routed_clicks[view.index]) +
-                L" | Teclas sem rota: " + std::to_wstring(unassigned_keys);
+                L" | Teclas sem rota: " + std::to_wstring(unassigned_keys) +
+                L" | Resets F8: " + std::to_wstring(full_resets);
         RECT text{ 10, 8, client.right - 10, 82 };
         DrawTextW(dc, status.c_str(), -1, &text, DT_LEFT | DT_NOPREFIX);
         RECT image = surface(client, view.index);
@@ -547,7 +549,10 @@ public:
                 app.raw(reinterpret_cast<HRAWINPUT>(lparam));
                 return DefWindowProcW(window, message, wparam, lparam);
             case WM_INPUT_DEVICE_CHANGE:
-                if (wparam == GIDC_REMOVAL) { app.router.device_removed(reinterpret_cast<HANDLE>(lparam)); app.update_gate(); app.invalidate(); }
+                if (wparam == GIDC_REMOVAL || wparam == GIDC_ARRIVAL) {
+                    app.router.device_changed(wparam, reinterpret_cast<HANDLE>(lparam));
+                    app.update_gate(); app.invalidate();
+                }
                 return 0;
             case WM_TIMER: app.tick(); return 0;
             case WM_ACTIVATEAPP: app.update_gate(); app.invalidate(); return 0;

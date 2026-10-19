@@ -38,7 +38,7 @@ public:
     void set_enabled(unsigned seat, bool enabled);
     void release_all();
     void reset();
-    void device_removed(HANDLE device);
+    void device_changed(WPARAM change, HANDLE device);
     const SeatInput& seat(size_t index) const { return seats_.at(index); }
 private:
     std::array<SeatInput, 2> seats_;

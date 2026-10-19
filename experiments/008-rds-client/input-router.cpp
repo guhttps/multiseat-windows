@@ -136,8 +136,10 @@ void InputRouter::reset() {
     for (SeatInput& seat : seats_) { seat.keyboard = nullptr; seat.mouse = nullptr; }
     initially_paired_ = false;
 }
-void InputRouter::device_removed(HANDLE device) {
-    if (!device) return;
+void InputRouter::device_changed(WPARAM change, HANDLE device) {
+    // Registering notifications also enumerates already connected devices.
+    // Repeated arrivals must preserve their bindings and held input.
+    if (change != GIDC_REMOVAL || !device) return;
     for (unsigned i = 0; i < seats_.size(); ++i) {
         SeatInput& seat = seats_[i];
         if (seat.keyboard != device && seat.mouse != device) continue;

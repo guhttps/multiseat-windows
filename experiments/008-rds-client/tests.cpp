@@ -1,6 +1,7 @@
 #include "network.h"
 #include "config.h"
 #include "input-router.h"
+#include "input-registration.h"
 #include "cursor-lease.h"
 #include "ssl-diagnostics.h"
 #include <wincrypt.h>
@@ -169,6 +170,57 @@ void certificate_tests() {
 RAWKEYBOARD key(USHORT virtual_key, USHORT scan, USHORT flags = 0) {
     RAWKEYBOARD result{}; result.VKey = virtual_key; result.MakeCode = scan; result.Flags = flags; return result;
 }
+struct RegistrationFixture {
+    static inline std::vector<std::array<RAWINPUTDEVICE, 2>> calls;
+    static inline bool fail{};
+    static BOOL WINAPI apply(PCRAWINPUTDEVICE devices, UINT count, UINT size) {
+        require(devices && count == 2 && size == sizeof(RAWINPUTDEVICE));
+        require(devices[0].usUsagePage == 1 && devices[0].usUsage == 6 &&
+            devices[1].usUsagePage == 1 && devices[1].usUsage == 2);
+        calls.push_back({devices[0], devices[1]});
+        return fail ? FALSE : TRUE;
+    }
+};
+void registration_tests() {
+    RegistrationFixture::calls.clear(); RegistrationFixture::fail = false;
+    const HWND target = reinterpret_cast<HWND>(1);
+    const DWORD sinks = RIDEV_INPUTSINK | RIDEV_EXINPUTSINK;
+    {
+        InputRegistration registration(RegistrationFixture::apply);
+        require(registration.mode() == RegistrationMode::None && registration.release() &&
+            RegistrationFixture::calls.empty());
+        require(!registration.set(nullptr, true) && RegistrationFixture::calls.empty());
+        require(registration.set(target, true) && registration.mode() == RegistrationMode::Foreground);
+        for (const auto& device : RegistrationFixture::calls.back())
+            require(device.hwndTarget == target && device.dwFlags == (RIDEV_DEVNOTIFY | RIDEV_NOLEGACY) &&
+                !(device.dwFlags & sinks));
+        require(registration.set(target, true) && RegistrationFixture::calls.size() == 1);
+        require(!registration.set(reinterpret_cast<HWND>(2), false) && RegistrationFixture::calls.size() == 1);
+        require(registration.set(target, false) && registration.mode() == RegistrationMode::Notifications);
+        for (const auto& device : RegistrationFixture::calls.back())
+            require(device.hwndTarget == target && device.dwFlags == RIDEV_DEVNOTIFY && !(device.dwFlags & sinks));
+        require(registration.set(target, false) && RegistrationFixture::calls.size() == 2);
+        RegistrationFixture::fail = true;
+        require(!registration.set(target, true) && registration.mode() == RegistrationMode::Notifications);
+        RegistrationFixture::fail = false;
+        require(registration.set(target, true));
+        RegistrationFixture::fail = true;
+        require(!registration.release() && registration.mode() == RegistrationMode::Foreground);
+        RegistrationFixture::fail = false;
+        require(registration.release() && registration.mode() == RegistrationMode::None);
+        for (const auto& device : RegistrationFixture::calls.back())
+            require(!device.hwndTarget && device.dwFlags == RIDEV_REMOVE);
+        const size_t released = RegistrationFixture::calls.size();
+        require(registration.release() && RegistrationFixture::calls.size() == released);
+        require(registration.set(target, false));
+    }
+    for (const auto& device : RegistrationFixture::calls.back())
+        require(!device.hwndTarget && device.dwFlags == RIDEV_REMOVE);
+    {
+        InputRegistration invalid(nullptr);
+        require(!invalid.set(target, true) && invalid.release());
+    }
+}
 struct CursorFixture {
     static inline RECT desktop{-1200, 0, 1920, 1080}, clipped{};
     static inline POINT position{};
@@ -295,8 +347,8 @@ void router_tests() {
     require(events.back().first == 0 && events.back().second.kind == EventKind::Button && events.back().second.down);
     const size_t button_count = events.size();
     router.mouse(ma, left, true); require(events.size() == button_count);
-    router.device_removed(reinterpret_cast<HANDLE>(99)); require(router.ready());
-    router.device_removed(mb);
+    router.device_changed(GIDC_REMOVAL, reinterpret_cast<HANDLE>(99)); require(router.ready());
+    router.device_changed(GIDC_REMOVAL, mb);
     require(!router.ready() && router.seat(0).held_buttons == 1 && router.seat(1).held_keys.empty());
     require(router.routable(0) && !router.routable(1) && router.seat(0).keyboard == ka &&
         router.seat(0).mouse == ma && router.seat(1).keyboard == kb && !router.seat(1).mouse);
@@ -337,9 +389,22 @@ void router_hotplug_tests() {
                 router.mouse(mice[i], left, true);
             }
             require(events.size() == 4);
+            // Focus changes update the registration flags. Windows sends
+            // arrival notifications again for the devices already present.
+            for (unsigned repeat = 0; repeat < 3; ++repeat) {
+                for (unsigned i = 0; i < 2; ++i) {
+                    router.device_changed(GIDC_ARRIVAL, keyboards[i]);
+                    router.device_changed(GIDC_ARRIVAL, mice[i]);
+                    require(router.seat(i).keyboard == keyboards[i] && router.seat(i).mouse == mice[i] &&
+                        router.seat(i).held_keys.contains(0x1E) && router.seat(i).held_buttons == 1);
+                }
+                router.device_changed(GIDC_ARRIVAL, replacement);
+                router.device_changed(0, keyboards[0]);
+                require(router.ready() && router.routable(0) && router.routable(1) && events.size() == 4);
+            }
             const unsigned peer = 1 - removed_seat;
             const HANDLE removed = remove_keyboard ? keyboards[removed_seat] : mice[removed_seat];
-            router.device_removed(removed);
+            router.device_changed(GIDC_REMOVAL, removed);
             require(events.size() == 6 && events[4].first == removed_seat && events[5].first == removed_seat &&
                 !events[4].second.down && !events[5].second.down);
             require(!router.ready() && !router.routable(removed_seat) && router.routable(peer) &&
@@ -348,9 +413,11 @@ void router_hotplug_tests() {
                 router.seat(peer).held_keys.contains(0x1E) && router.seat(peer).held_buttons == 1);
             require(router.seat(removed_seat).keyboard == (remove_keyboard ? nullptr : keyboards[removed_seat]) &&
                 router.seat(removed_seat).mouse == (remove_keyboard ? mice[removed_seat] : nullptr));
-            router.device_removed(nullptr);
-            router.device_removed(reinterpret_cast<HANDLE>(99));
-            router.device_removed(removed); // Duplicate notifications must not release the peer.
+            router.device_changed(GIDC_REMOVAL, nullptr);
+            router.device_changed(GIDC_REMOVAL, reinterpret_cast<HANDLE>(99));
+            router.device_changed(GIDC_REMOVAL, removed); // Duplicate notifications must not release the peer.
+            router.device_changed(GIDC_ARRIVAL, removed); // Reconnection never associates automatically.
+            require(!router.ready());
             router.keyboard(keyboards[removed_seat], key('C', 0x2E), true);
             router.mouse(mice[removed_seat], motion, true);
             router.keyboard(replacement, key('C', 0x2E), true);
@@ -448,6 +515,7 @@ bool run_self_tests() {
         router_tests(); std::cout << "PASS: per-device routing, clamping, repeats and release/reset/removal.\n";
         router_availability_tests(); std::cout << "PASS: failed-seat input release, healthy-seat continuity and no reconnect replay.\n";
         router_hotplug_tests(); std::cout << "PASS: per-seat device removal, peer held-input continuity and explicit re-pairing in both directions.\n";
+        registration_tests(); std::cout << "PASS: device notifications retained while paused, no background input sinks and bounded registration cleanup.\n";
         cursor_tests(); std::cout << "PASS: inert cursor capture, cleanup, failure and foreign-owner preservation.\n";
         std::cout << "Offline tests only; no RDP connection, input registration, trust-store or host configuration changes.\n";
         return true;
