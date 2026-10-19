@@ -5,7 +5,7 @@
 
 namespace rds_lab {
 struct Options {
-    bool smoke{}, self_test{}, synthetic{}, check_config{}, unattended{}, recovery{};
+    bool smoke{}, self_test{}, synthetic{}, check_config{}, unattended{}, recovery{}, close_view_recovery{};
     unsigned recovery_index{};
     std::wstring path;
 };
@@ -19,6 +19,7 @@ inline Options parse_options(std::span<const std::wstring> arguments) {
         else if (argument == L"--transport-check") result.synthetic = true;
         else if (argument == L"--unattended-fixtures") result.unattended = true;
         else if (argument == L"--recovery-cycle") result.recovery = true;
+        else if (argument == L"--close-view-recovery") result.close_view_recovery = true;
         else if (argument == L"--check-config") result.check_config = true;
         else if (argument == L"--recovery-seat") {
             if (recovery_seat_given || i + 1 >= arguments.size())
@@ -34,7 +35,8 @@ inline Options parse_options(std::span<const std::wstring> arguments) {
     }
     if (static_cast<int>(result.smoke) + result.self_test + result.synthetic + result.check_config > 1 ||
         ((result.smoke || result.self_test) && !result.path.empty()) || (result.unattended && !result.synthetic) ||
-        (result.recovery && (!result.synthetic || !result.unattended)) || (recovery_seat_given && !result.recovery))
+        (result.recovery && (!result.synthetic || !result.unattended)) || (recovery_seat_given && !result.recovery) ||
+        (result.close_view_recovery && !result.recovery))
         throw std::runtime_error("Conflicting command options.");
     return result;
 }

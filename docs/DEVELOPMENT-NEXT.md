@@ -1,6 +1,6 @@
 # Continuidade do desenvolvimento
 
-Atualizado em 2026-10-18. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
+Atualizado em 2026-10-19. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
 
 ## Objetivo
 
@@ -27,6 +27,8 @@ O primeiro ensaio físico de retirada do teclado do posto 1 manteve digitação 
 O ensaio automático de PnP passou para desativação e reativação dos dois mouses, separadamente: avisos reais chegaram ao roteador de produção, fixtures sintéticas preservaram o outro posto e a reassociação foi explícita. Todos os dispositivos terminaram habilitados e os processos de recuperação encerraram. A triagem excluiu os teclados sem `DN_DISABLEABLE`; manter esse limite. Esse resultado não aprova hotplug com cabos ou aplicativos externos. Agrupe operações administrativas numa rodada limitada para reduzir pedidos de UAC; confirme o privilégio real do processo em vez de inferi-lo do modo de acesso do agente.
 
 A recuperação sintética foi ampliada com `--recovery-seat 1|2` e passou nos dois sentidos, em rodadas limpas com os mesmos processos preservados dentro de cada rodada e encerramento com código zero. Um auxiliar administrativo local, com concessão de oito horas, permitiu consultar e limpar somente as sessões fictícias sem novo UAC por operação; trinta verificações de pedidos passaram. Código, plano, credenciais cifradas e validade efetiva do auxiliar são privados. Verifique sua validade antes de reutilizar; a concessão não renova automaticamente e não autoriza ações administrativas fora do laboratório.
+
+A revisão `737c6ff` passou também em uma observação de 912 segundos, com 76 amostras, seguida de encerramento limpo do cliente e limpeza das sessões fictícias. O frontend passou depois a fechar somente o painel escolhido e permitir reabertura. `--close-view-recovery` passou nos dois sentidos após separar o clique no editor sobrevivente e suas teclas, com uma nova conferência antes do envio. As duas ordens de fechamento no modo normal preservaram o posto oposto e terminaram com código zero ao fechar o último painel. A proteção de foco recusou F7 em segundo plano; a reabertura por teclado físico após fechar o painel continua pendente. Controladores locais devem usar o comando explícito de saída do aplicativo para limpar os dois painéis; um único `CloseMainWindow` agora fecha somente um deles.
 
 1. Leia STATUS.md e verifique a branch principal, o diff local e os workflows Windows build e Public content safety no GitHub.
 2. Preserve relatórios locais e a base privada anterior. Não faça merge do histórico antigo na base pública; ele contém um caminho de perfil pessoal em versões antigas.

@@ -34,8 +34,10 @@ void option_tests() {
         require(option.synthetic && option.unattended && option.recovery && option.recovery_index == (seat == L"1" ? 0U : 1U));
     }
     require(parse({ L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle" }).recovery_index == 0);
+    require(parse({ L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--close-view-recovery", L"--recovery-seat", L"2" }).close_view_recovery);
     for (const auto& values : std::vector<std::vector<std::wstring>>{
         {L"--recovery-seat", L"2"}, {L"--transport-check", L"--recovery-cycle"},
+        {L"--close-view-recovery"}, {L"--transport-check", L"--unattended-fixtures", L"--close-view-recovery"},
         {L"--unattended-fixtures"}, {L"--smoke", L"--transport-check"},
         {L"--self-test", L"--config", L"private.json"},
         {L"--transport-check", L"--unattended-fixtures", L"--recovery-seat", L"2"},

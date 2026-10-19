@@ -53,6 +53,13 @@ public:
     }
 };
 struct View { Application* app{}; unsigned index{}; HWND window{}; PaintBuffer buffer; };
+struct ViewTransition {
+    bool& active;
+    explicit ViewTransition(bool& value) : active(value) { active = true; }
+    ViewTransition(const ViewTransition&) = delete;
+    ViewTransition& operator=(const ViewTransition&) = delete;
+    ~ViewTransition() { active = false; }
+};
 bool input_desktop_is_default() {
     HDESK desktop = OpenInputDesktop(0, FALSE, DESKTOP_READOBJECTS);
     if (!desktop) return false;
@@ -90,9 +97,10 @@ bool terminal_state(TransportState state) {
 }
 class Application {
 public:
-    enum class RecoveryPhase { Initial, PeerOffline, Reconnecting, PreparingEditor, Finished };
+    enum class RecoveryPhase { Initial, PreparingPeer, PeerOffline, Reconnecting, PreparingEditor, Finished };
     Config config;
     std::array<View, 2> views{};
+    std::array<bool, 2> view_open{true, true};
     std::array<std::unique_ptr<Transport>, 2> transports;
     InputRouter router;
     CursorLease cursor;
@@ -103,6 +111,7 @@ public:
     std::array<ULONGLONG, 2> attempt_started{};
     bool smoke = false, synthetic = false, unattended = false, closing = false, capture = false;
     bool recovery = false;
+    bool close_view_recovery = false, view_transition = false;
     unsigned recovery_index = 0;
     RecoveryPhase recovery_phase = RecoveryPhase::Initial;
     ULONGLONG recovery_phase_since = 0;
@@ -111,7 +120,7 @@ public:
     std::array<std::string, 2> last_progress;
     int result = 0;
     Application(Config source, bool smoke_mode, bool synthetic_mode, bool unattended_mode = false, bool recovery_mode = false,
-        unsigned recovery_seat = 0)
+        unsigned recovery_seat = 0, bool close_view_mode = false)
         : config(std::move(source)), router(sizes(config), [this](unsigned seat, const InputEvent& event) {
             if (transports[seat]) {
                 if (transports[seat]->enqueue(event)) {
@@ -119,7 +128,8 @@ public:
                     if (event.kind == EventKind::Button && event.code == 0 && event.down) ++routed_clicks[seat];
                 } else if (transports[seat]->state() == TransportState::Connected) send_failed[seat] = true;
             }
-        }), smoke(smoke_mode), synthetic(synthetic_mode), unattended(unattended_mode), recovery(recovery_mode), recovery_index(recovery_seat) {}
+        }), smoke(smoke_mode), synthetic(synthetic_mode), unattended(unattended_mode), recovery(recovery_mode),
+            close_view_recovery(close_view_mode), recovery_index(recovery_seat) {}
     ~Application() {
         cursor.release();
         router.release_all();
@@ -129,16 +139,17 @@ public:
     }
     bool foreground() const {
         const HWND active = GetForegroundWindow();
-        return IsWindowVisible(views[0].window) && IsWindowVisible(views[1].window) &&
-            !IsIconic(views[0].window) && !IsIconic(views[1].window) &&
-            (active == views[0].window || active == views[1].window) && input_desktop_is_default();
+        for (unsigned i = 0; i < views.size(); ++i)
+            if (view_open[i] && (!IsWindowVisible(views[i].window) || IsIconic(views[i].window))) return false;
+        return ((view_open[0] && active == views[0].window) || (view_open[1] && active == views[1].window)) &&
+            input_desktop_is_default();
     }
     bool connected(unsigned index) const {
         return transports[index] && transports[index]->state() == TransportState::Connected &&
             transports[index]->frame_count() > 0 && transports[index]->input_ready();
     }
     bool both_connected() const { return connected(0) && connected(1); }
-    bool any_connected() const { return connected(0) || connected(1); }
+    bool any_connected() const { return (view_open[0] && connected(0)) || (view_open[1] && connected(1)); }
     void report_progress(bool force) {
         if (smoke) return;
         for (unsigned i = 0; i < transports.size(); ++i) {
@@ -165,11 +176,11 @@ public:
         std::cout << "INPUT full_resets=" << full_resets << std::endl;
     }
     void update_gate() {
-        if (smoke || synthetic || closing) return;
+        if (smoke || synthetic || closing || view_transition) return;
         if (!views[0].window || !views[1].window) return;
         const bool enabled = foreground() && any_connected();
         if (!enabled && capture) { router.release_all(); report_input_counts(); }
-        for (unsigned i = 0; i < transports.size(); ++i) router.set_enabled(i, enabled && connected(i));
+        for (unsigned i = 0; i < transports.size(); ++i) router.set_enabled(i, enabled && view_open[i] && connected(i));
         capture = enabled;
         // Keep only device-change notifications while routing is paused.
         // Neither mode enables INPUTSINK/EXINPUTSINK: host background typing
@@ -269,7 +280,7 @@ public:
             else status += capture ? L"\nComplete os dois pares: F6 em cada teclado; clique direito em cada mouse." :
                     L"\nAtive um painel para associar. São necessários dois teclados e dois mouses.";
         }
-        else status += capture ? L"\nF7 reconecta; F8 libera; F9 desconecta seu posto; F12 encerra os dois." :
+        else status += capture ? L"\nF7 reabre/reconecta; F8 libera; F9 desconecta seu posto; F12 encerra os dois." :
             L"\nEntrada pausada. Ative uma destas janelas para continuar; F12 encerra.";
         if (!smoke && !synthetic)
             status += L"\nTeclas encaminhadas: " + std::to_wstring(routed_keys[view.index]) +
@@ -350,6 +361,42 @@ public:
         send_failed[index] = false;
         std::cout << "DISCONNECT seat=" << index + 1 << std::endl;
     }
+    void close_view(unsigned index) {
+        if (closing || view_transition || !view_open.at(index)) return;
+        // Synthetic runs permit only the explicitly scheduled close. A user
+        // cancellation must abort before a later fixture can be sent.
+        if (synthetic && !(close_view_recovery && recovery_phase == RecoveryPhase::PreparingPeer && index == recovery_index)) {
+            close(1); return;
+        }
+        const unsigned peer = 1 - index;
+        if (!view_open[peer]) { close(0); return; }
+        const bool transfer_focus = !smoke && foreground() && GetForegroundWindow() == views[index].window;
+        {
+            // ShowWindow sends activation callbacks synchronously. Apply the
+            // complete visibility change before recalculating the input gate.
+            ViewTransition transition(view_transition);
+            disconnect(index);
+            view_open[index] = false;
+            ShowWindow(views[index].window, SW_HIDE);
+            if (transfer_focus && IsWindowVisible(views[peer].window) && !IsIconic(views[peer].window))
+                SetForegroundWindow(views[peer].window);
+        }
+        std::cout << "VIEW-CLOSED seat=" << index + 1 << "; peer=" << peer + 1 << std::endl;
+        update_gate(); invalidate();
+    }
+    void reopen(unsigned index) {
+        if (closing || view_transition) return;
+        {
+            ViewTransition transition(view_transition);
+            if (!view_open.at(index)) {
+                view_open[index] = true;
+                if (!smoke) ShowWindow(views[index].window, SW_SHOWNOACTIVATE);
+                std::cout << "VIEW-OPENED seat=" << index + 1 << std::endl;
+            }
+            if (!smoke) restart(index);
+        }
+        update_gate(); invalidate();
+    }
     void disconnect_device(HANDLE device) {
         if (smoke || synthetic || closing || !foreground() || !device) return;
         for (unsigned i = 0; i < transports.size(); ++i)
@@ -360,7 +407,7 @@ public:
     void retry_unavailable() {
         if (smoke || synthetic || closing || !foreground()) return;
         for (unsigned i = 0; i < transports.size(); ++i)
-            if (timed_out[i] || terminal_state(transports[i]->state())) restart(i);
+            if (!view_open[i] || timed_out[i] || terminal_state(transports[i]->state())) reopen(i);
         update_gate();
         invalidate();
     }
@@ -373,19 +420,40 @@ public:
             if (connected_since && now - connected_since >= 30000) {
                 // The external controller must validate both empty owned
                 // editors during this delay. This mode never registers Raw Input.
+                recovery_phase = close_view_recovery ? RecoveryPhase::PreparingPeer : RecoveryPhase::PeerOffline;
+                recovery_phase_since = now;
+                if (close_view_recovery) {
+                    SendMessageW(views[recovery_index].window, WM_CLOSE, 0, 0);
+                    if (closing || view_open[recovery_index] || IsWindowVisible(views[recovery_index].window))
+                        throw std::runtime_error("Scheduled view closure did not preserve the peer.");
+                } else disconnect(recovery_index);
+                if (!connected(peer)) throw std::runtime_error("Recovery peer was lost.");
+                if (close_view_recovery) click_fixture_editor(peer);
+                else send_fixture(peer);
+                recovery_phase_since = GetTickCount64();
+                if (close_view_recovery)
+                    std::cout << "RECOVERY: seat" << recovery_index + 1
+                        << " disconnected; peer editor preparation; guest preflight required." << std::endl;
+                else std::cout << "RECOVERY: seat" << recovery_index + 1 << " disconnected; seat" << peer + 1
+                        << " fixture sent; guest observation required." << std::endl;
+            }
+            break;
+        case RecoveryPhase::PreparingPeer:
+            // Closing a host view can transfer activation. Revalidate the
+            // surviving guest editor between its click and synthetic keys.
+            if (now - recovery_phase_since >= 10000) {
+                if (!connected(peer)) throw std::runtime_error("Surviving peer input readiness was lost.");
+                send_fixture_keys(peer);
                 recovery_phase = RecoveryPhase::PeerOffline;
                 recovery_phase_since = now;
-                disconnect(recovery_index);
-                if (!connected(peer)) throw std::runtime_error("Recovery peer was lost.");
-                send_fixture(peer);
-                recovery_phase_since = GetTickCount64();
                 std::cout << "RECOVERY: seat" << recovery_index + 1 << " disconnected; seat" << peer + 1
                     << " fixture sent; guest observation required." << std::endl;
             }
             break;
         case RecoveryPhase::PeerOffline:
             if (now - recovery_phase_since >= 20000) {
-                restart(recovery_index);
+                if (close_view_recovery) reopen(recovery_index);
+                else restart(recovery_index);
                 recovery_phase = RecoveryPhase::Reconnecting;
                 recovery_phase_since = GetTickCount64();
                 std::cout << "RECOVERY: reconnecting seat" << recovery_index + 1 << "; seat" << peer + 1 << " retained." << std::endl;
@@ -421,7 +489,15 @@ public:
     void tick() {
         if (closing) return;
         const ULONGLONG now = GetTickCount64();
-        if (smoke) { if (now - started >= 200) close(0); return; }
+        if (smoke) {
+            if (now - started >= 200) {
+                SendMessageW(views[0].window, WM_CLOSE, 0, 0);
+                if (closing || view_open[0] || !view_open[1]) throw std::runtime_error("First smoke close affected its peer.");
+                SendMessageW(views[1].window, WM_CLOSE, 0, 0);
+                if (!closing) throw std::runtime_error("Last smoke close did not end the client.");
+            }
+            return;
+        }
         report_progress(false);
         for (unsigned i = 0; i < transports.size(); ++i) {
             // Each connection owns its deadline and input state. A failed peer
@@ -440,7 +516,8 @@ public:
                     std::cout << "RDP seat " << i + 1 << " unavailable; state=" << static_cast<int>(state)
                         << " code=" << transports[i]->error_code() << " " << transports[i]->diagnostics() << std::endl;
                 }
-                const bool expected_disconnect = recovery && i == recovery_index && recovery_phase == RecoveryPhase::PeerOffline;
+                const bool expected_disconnect = recovery && i == recovery_index &&
+                    (recovery_phase == RecoveryPhase::PreparingPeer || recovery_phase == RecoveryPhase::PeerOffline);
                 if (synthetic && !expected_disconnect) { close(1); return; }
             }
         }
@@ -515,6 +592,16 @@ public:
             catch (...) { ReleaseDC(view.window, dc); throw; }
             ReleaseDC(view.window, dc);
         }
+        if (smoke) for (unsigned i = 0; i < views.size(); ++i) {
+            SendMessageW(views[i].window, WM_CLOSE, 0, 0);
+            if (closing || view_open[i] || !view_open[1-i] || !IsWindow(views[1-i].window))
+                throw std::runtime_error("Hidden view close did not preserve its peer.");
+            SendMessageW(views[i].window, WM_CLOSE, 0, 0); // Repeated closure is inert.
+            reopen(i);
+            if (closing || !view_open[i] || IsWindowVisible(views[i].window) ||
+                transports[i]->state() != TransportState::Idle || registration.mode() != RegistrationMode::None)
+                throw std::runtime_error("Hidden view reopen changed smoke boundaries.");
+        }
         started = GetTickCount64();
         if (!SetTimer(views[0].window, 1, 100, nullptr)) throw std::runtime_error("Cannot create lab gate timer.");
         if (!smoke) {
@@ -565,7 +652,7 @@ public:
                 if (wparam == VK_F12) app.close(0);
                 else if (wparam == VK_F7) app.retry_unavailable();
                 return 0;
-            case WM_CLOSE: app.close(0); return 0;
+            case WM_CLOSE: app.close_view(view->index); return 0;
             case WM_SETCURSOR:
                 if (LOWORD(lparam) == HTCLIENT) {
                     SetCursor(app.cursor.active() && app.capture && app.foreground() ? nullptr : LoadCursorW(nullptr, IDC_ARROW));
@@ -618,7 +705,7 @@ int wmain(int argc, wchar_t** argv) {
             if (options.smoke) {
                 Application application(smoke_config(), true, false);
                 result = application.run();
-                if (result == 0) std::cout << "PASS: two local views and FreeRDP contexts; no connection or Raw Input registration.\n";
+                if (result == 0) std::cout << "PASS: two hidden views, independent close/reopen and last-view exit; no connection or Raw Input registration.\n";
             } else {
                 Config config = load_config(options.path.empty() ? default_config_path() : options.path);
                 if (options.check_config) {
@@ -635,7 +722,8 @@ int wmain(int argc, wchar_t** argv) {
                     std::cout << "F6 pairs keyboards, right clicks pair mice; F7 retries unavailable seats, F8 resets, F9 disconnects the paired seat, F12 closes both. Host focus loss pauses input.\n";
                     if (options.unattended)
                         std::cout << "UNATTENDED: fixed VM fixtures after 30 seconds with both frames; host focus is not required. Verify the owned guest Notepads before sending." << std::endl;
-                    Application application(std::move(config), false, options.synthetic, options.unattended, options.recovery, options.recovery_index);
+                    Application application(std::move(config), false, options.synthetic, options.unattended, options.recovery,
+                        options.recovery_index, options.close_view_recovery);
                     result = application.run();
                 }
             }
