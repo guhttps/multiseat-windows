@@ -11,6 +11,7 @@
 #include <chrono>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -52,7 +53,21 @@ public:
         return memory_;
     }
 };
-struct View { Application* app{}; unsigned index{}; HWND window{}; PaintBuffer buffer; };
+struct ViewContent {
+    std::wstring status;
+    unsigned frame{};
+    bool remote_ready{}, show_cursor{};
+    int cursor_x{}, cursor_y{};
+    bool operator==(const ViewContent&) const = default;
+};
+struct View {
+    Application* app{};
+    unsigned index{};
+    HWND window{};
+    PaintBuffer buffer;
+    std::optional<ViewContent> last_requested;
+    ULONGLONG invalidation_requests{}, buffered_paints{};
+};
 struct ViewTransition {
     bool& active;
     explicit ViewTransition(bool& value) : active(value) { active = true; }
@@ -208,7 +223,19 @@ public:
             if (!cursor.acquire(client, desktop)) throw std::runtime_error("Cannot safely capture the shared host cursor.");
         } else if (!cursor.release()) throw std::runtime_error("Cannot release the owned host cursor capture.");
     }
-    void invalidate() { for (const View& view : views) InvalidateRect(view.window, nullptr, FALSE); }
+    void invalidate() {
+        for (View& view : views) {
+            // Never pass a null HWND: that would invalidate other applications.
+            if (!view.window || !transports[view.index]) continue;
+            if (!view_open[view.index]) { view.last_requested.reset(); continue; }
+            const auto content = content_for(view.index);
+            if (view.last_requested && *view.last_requested == content) continue;
+            if (!InvalidateRect(view.window, nullptr, FALSE))
+                throw std::runtime_error("Cannot invalidate the owned local view.");
+            ++view.invalidation_requests;
+            view.last_requested = content;
+        }
+    }
     void raw(HRAWINPUT handle) {
         if (!capture || !foreground() || !any_connected()) { update_gate(); return; }
         RAWINPUT input{};
@@ -250,17 +277,13 @@ public:
         area.bottom = area.top + height;
         return area;
     }
-    void paint(View& view, HDC dc) {
-        RECT client{};
-        GetClientRect(view.window, &client);
-        FillRect(dc, &client, GetSysColorBrush(COLOR_WINDOW));
-        SetBkMode(dc, TRANSPARENT);
-        HFONT font = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
-        const HGDIOBJ previous = SelectObject(dc, font);
-        std::wstring status = L"LABORATÓRIO WINDOWS SERVER — POSTO " + std::to_wstring(view.index + 1) +
+    ViewContent content_for(unsigned index) const {
+        ViewContent content;
+        content.status = L"LABORATÓRIO WINDOWS SERVER — POSTO " + std::to_wstring(index + 1) +
             L"\n" + (smoke ? L"Smoke local: nenhuma conexão ou captura" :
-                timed_out[view.index] ? L"Prazo de conexão/frame excedido" : state_text(transports[view.index]->state()));
-        if (!smoke && !synthetic && (timed_out[view.index] || terminal_state(transports[view.index]->state())))
+                timed_out[index] ? L"Prazo de conexão/frame excedido" : state_text(transports[index]->state()));
+        auto& status = content.status;
+        if (!smoke && !synthetic && (timed_out[index] || terminal_state(transports[index]->state())))
             status += L"; F7 reconecta este posto";
         if (synthetic) {
             status += L"\nTeste sintético: não demonstra isolamento dos periféricos físicos.";
@@ -271,11 +294,11 @@ public:
             if (recovery) status += L"\nRecuperação sintética: desconecta e reconecta somente o posto " + std::to_wstring(recovery_index + 1) + L".";
         }
         else if (!router.ready()) {
-            const SeatInput& seat = router.seat(view.index);
+            const SeatInput& seat = router.seat(index);
             status += L"\nTeclado: " + std::wstring(seat.keyboard ? L"associado" : L"aguardando F6") +
                 L" | Mouse: " + std::wstring(seat.mouse ? L"associado" : L"aguardando clique direito");
             if (capture && router.any_routable())
-                status += router.routable(view.index) ? L"\nEste posto continua ativo. Reassocie o dispositivo ausente no outro posto." :
+                status += router.routable(index) ? L"\nEste posto continua ativo. Reassocie o dispositivo ausente no outro posto." :
                     L"\nReassocie o dispositivo ausente: F6 no teclado ou clique direito no mouse.";
             else status += capture ? L"\nComplete os dois pares: F6 em cada teclado; clique direito em cada mouse." :
                     L"\nAtive um painel para associar. São necessários dois teclados e dois mouses.";
@@ -283,25 +306,42 @@ public:
         else status += capture ? L"\nF7 reabre/reconecta; F8 libera; F9 desconecta seu posto; F12 encerra os dois." :
             L"\nEntrada pausada. Ative uma destas janelas para continuar; F12 encerra.";
         if (!smoke && !synthetic)
-            status += L"\nTeclas encaminhadas: " + std::to_wstring(routed_keys[view.index]) +
-                L" | Cliques: " + std::to_wstring(routed_clicks[view.index]) +
+            status += L"\nTeclas encaminhadas: " + std::to_wstring(routed_keys[index]) +
+                L" | Cliques: " + std::to_wstring(routed_clicks[index]) +
                 L" | Teclas sem rota: " + std::to_wstring(unassigned_keys) +
                 L" | Resets F8: " + std::to_wstring(full_resets);
+        content.remote_ready = connected(index);
+        if (content.remote_ready) content.frame = transports[index]->frame_count();
+        content.show_cursor = capture && router.routable(index);
+        if (content.show_cursor) {
+            content.cursor_x = router.seat(index).x;
+            content.cursor_y = router.seat(index).y;
+        }
+        return content;
+    }
+    void paint(View& view, HDC dc) {
+        RECT client{};
+        GetClientRect(view.window, &client);
+        FillRect(dc, &client, GetSysColorBrush(COLOR_WINDOW));
+        SetBkMode(dc, TRANSPARENT);
+        HFONT font = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
+        const HGDIOBJ previous = SelectObject(dc, font);
+        const ViewContent content = content_for(view.index);
         RECT text{ 10, 8, client.right - 10, 82 };
-        DrawTextW(dc, status.c_str(), -1, &text, DT_LEFT | DT_NOPREFIX);
+        DrawTextW(dc, content.status.c_str(), -1, &text, DT_LEFT | DT_NOPREFIX);
         RECT image = surface(client, view.index);
         FillRect(dc, &image, GetSysColorBrush(COLOR_APPWORKSPACE));
-        if (connected(view.index)) transports[view.index]->draw(dc, image);
+        if (content.remote_ready) transports[view.index]->draw(dc, image);
         else if (!smoke) {
             const wchar_t* unavailable = timed_out[view.index] ? L"Prazo de conexão excedido; F7 reconecta." :
                 state_text(transports[view.index]->state());
             DrawTextW(dc, unavailable, -1, &image, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
         }
-        if (capture && router.routable(view.index)) {
+        if (content.show_cursor) {
             const SeatInput& seat = router.seat(view.index);
-            const int x = image.left + static_cast<int>(static_cast<long long>(seat.x) *
+            const int x = image.left + static_cast<int>(static_cast<long long>(content.cursor_x) *
                 (image.right - image.left) / seat.width);
-            const int y = image.top + static_cast<int>(static_cast<long long>(seat.y) *
+            const int y = image.top + static_cast<int>(static_cast<long long>(content.cursor_y) *
                 (image.bottom - image.top) / seat.height);
             const HGDIOBJ pen = SelectObject(dc, GetStockObject(DC_PEN));
             SetDCPenColor(dc, RGB(230, 45, 45));
@@ -322,6 +362,46 @@ public:
         paint(view, memory);
         if (!BitBlt(target, 0, 0, client.right, client.bottom, memory, 0, 0, SRCCOPY))
             throw std::runtime_error("Cannot present the local view paint buffer.");
+        ++view.buffered_paints;
+    }
+    void smoke_invalidation() {
+        // Use the normal presentation policy on the actual hidden windows.
+        // This does not run the input gate, connect, activate, or capture.
+        // Hidden windows do not retain a visible update region. Count only
+        // successful calls to the real Win32 invalidation boundary instead.
+        std::array<ULONGLONG, 2> before{};
+        const auto clear = [this, &before] {
+            for (unsigned i = 0; i < views.size(); ++i) before[i] = views[i].invalidation_requests;
+        };
+        unsigned step = 0;
+        const auto expect = [this, &step, &before](bool first, bool second) {
+            ++step;
+            const ULONGLONG actual_first = views[0].invalidation_requests - before[0];
+            const ULONGLONG actual_second = views[1].invalidation_requests - before[1];
+            if (actual_first != static_cast<ULONGLONG>(first) || actual_second != static_cast<ULONGLONG>(second))
+                throw std::runtime_error("Owned view invalidation mismatch at step " + std::to_string(step) +
+                    "; first=" + std::to_string(actual_first) + "; second=" + std::to_string(actual_second));
+        };
+        smoke = false;
+        clear(); invalidate(); expect(true, true); clear();
+        invalidate(); expect(false, false);
+        clear();
+        ++routed_keys[0]; invalidate(); expect(true, false); clear();
+        ++unassigned_keys; invalidate(); expect(true, true); clear();
+        RAWKEYBOARD key{}; key.VKey = VK_F6; key.MakeCode = 0x40;
+        const HANDLE keyboard = reinterpret_cast<HANDLE>(static_cast<ULONG_PTR>(1));
+        router.keyboard(keyboard, key, true);
+        invalidate(); expect(true, false); clear();
+        router.keyboard(keyboard, key, true);
+        invalidate(); expect(false, false);
+        router.reset();
+        routed_keys = {}; unassigned_keys = 0;
+        invalidate(); expect(true, true); clear();
+        smoke = true;
+        for (View& view : views) view.last_requested.reset();
+        if (registration.mode() != RegistrationMode::None || cursor.active() ||
+            transports[0]->state() != TransportState::Idle || transports[1]->state() != TransportState::Idle)
+            throw std::runtime_error("Invalidation smoke changed input or transport boundaries.");
     }
     void click_fixture_editor(unsigned index) {
         auto send = [this, index](InputEvent event) {
@@ -583,6 +663,7 @@ public:
             if (!views[i].window) throw std::runtime_error("Cannot create RDP lab view.");
             transports[i] = std::make_unique<Transport>(config, i, views[i].window);
         }
+        if (smoke) smoke_invalidation();
         if (smoke) for (View& view : views) {
             // Exercise actual buffered painting without showing/activating a
             // window, connecting a transport, or registering Raw Input.
@@ -624,6 +705,9 @@ public:
         unregister_input();
         for (auto& transport : transports) transport->stop();
         report_progress(true);
+        if (!smoke) for (const View& view : views)
+            std::cout << "PAINT seat=" << view.index + 1 << " invalidation_requests=" << view.invalidation_requests <<
+                " buffered_paints=" << view.buffered_paints << std::endl;
         return result;
     }
     static LRESULT CALLBACK procedure(HWND window, UINT message, WPARAM wparam, LPARAM lparam) noexcept {
