@@ -44,6 +44,8 @@ Administração do convidado por [PowerShell Direct](https://learn.microsoft.com
 | Desativação e reativação de mouses por PnP | Passou nos dois postos, com avisos reais do Windows e fixtures sintéticas no roteador de produção; par intacto preservado e reassociação explícita exigida. Todos os dispositivos selecionados reabilitados; teste com cabos e aplicativos externos ainda pendente |
 | Observação automática de cinco minutos | Passou em 22 amostras durante 303 segundos: duas sessões ativas, mesmos aplicativos com propriedade verificada e duas janelas locais responsivas; sem interação contínua ou medição de latência |
 | Observação estendida anterior ao fechamento independente | Passou na revisão `737c6ff`: 912 segundos, 76 amostras, sessões e aplicativos preservados, janelas responsivas, encerramento limpo e limpeza das sessões fictícias |
+| Observação de 30 minutos com fechamento independente disponível | Passou na revisão `e65d60b`: 1812 segundos e 130 amostras, sem digitação, com sessões e aplicativos preservados e janelas responsivas; cliente encerrado e sessões fictícias limpas |
+| CPU do processo no cenário ocioso local | Quatro rodadas A-B-B-A da revisão `295c70a`, com aproximadamente 70 segundos medidos por rodada após 20 segundos de preparo: média ponderada de 3,23% antes e 0,12% depois, em relação a um núcleo. Sem medição de FPS, latência ou jogos |
 | Bloqueio e UAC | Pendentes; o ciclo sintético não aprova esses cenários |
 
 Relatórios brutos, endereços, SIDs, certificados, identificadores e credenciais ficam somente em `docs/lab/results/` e `build/`, ignorados pelo Git. A evidência pública deve limitar-se a procedimento, resultado, limitações e booleanos revisados, sem anexar os arquivos brutos ou capturas do desktop pessoal.
@@ -105,6 +107,16 @@ Uma observação posterior da revisão `737c6ff`, anterior ao fechamento indepen
 Na mesma revisão, o ciclo `--transport-check --unattended-fixtures --recovery-cycle` passou novamente após preparar dois editores vazios. O coletor confirmou a fixture do posto 2 enquanto o posto 1 estava desconectado, revalidou o editor reconectado antes das teclas e confirmou as duas fixtures exatas nos mesmos aplicativos. O cliente terminou com código zero e stderr vazio.
 
 Um ensaio separado e local verificou a identidade de quatro dispositivos de entrada individuais, em contêineres USB distintos, e preservou suas associações de teste durante mudanças reais das flags de registro. Esse preparo usou entrada sintética somente no roteador, sem encaminhá-la ao sistema ou aos aplicativos. Nenhum dispositivo foi desativado nessa etapa; ela não substitui o teste de remoção e reconexão.
+
+## Observação de 30 minutos e comparação de CPU
+
+Uma nova execução da revisão `e65d60b` completou 1812 segundos de observação e 130 amostras. Cada amostra confirmou as duas sessões ativas, os mesmos Notepads com propriedade e controles válidos e duas janelas locais responsivas. O ensaio não digitou texto, terminou com cliente encerrado e limpou as sessões fictícias. Isso mede disponibilidade nos instantes observados; não demonstra atualização contínua da imagem, FPS, latência, jogos ou o motor nativo.
+
+Uma tentativa anterior foi interrompida pela coleta ao comparar diretamente horários da VM e do host. Ela permanece como execução incompleta. A rodada aprovada verificou duas atualizações sucessivas de cada observador dentro de uma janela medida pelo relógio monotônico do host, preservando identidade, propriedade e integridade dos snapshots. Vinte fixtures cobriram relógios deslocados, relatórios sem atualização, mudança de identidade, expiração e adulteração; o preflight real passou. Nenhum horário de máquina foi alterado.
+
+A revisão `295c70a` passou depois por quatro rodadas ociosas em ordem A-B-B-A, com os mesmos aplicativos e sem digitação. Após 20 segundos de preparo por rodada, cada intervalo medido durou aproximadamente 70 segundos. A média ponderada do consumo de CPU do processo foi 3,23% antes e 0,12% depois, em relação a um núcleo. Os pedidos de redesenho acompanham mudanças no próprio painel; a conferência de foco permanece a cada 100 ms. É uma comparação local desse cenário ocioso, sem inferir FPS, latência ou capacidade de jogos. O ensaio de 30 minutos acima pertence à revisão anterior.
+
+A mesma revisão passou novamente no ciclo sintético de fechamento/reabertura nos dois sentidos e nas duas ordens de fechamento normal, com aplicativos preservados, saída zero e stderr vazio. Os quatro checks obrigatórios passaram antes da integração. O binário recompilado na principal foi identificado separadamente do executável usado na prova de execução e passou nos 14 CTests. A reabertura por teclado físico permanece uma prova separada.
 
 ## Desativação e reativação de mouses por PnP
 
