@@ -32,6 +32,24 @@ target_link_libraries(ms-seat-demo PRIVATE user32)
 multiseat_experiment(ms-child-session-probe experiments/006-child-session/main.cpp)
 target_link_libraries(ms-child-session-probe PRIVATE wtsapi32 ole32 oleaut32)
 
+# Native control foundation only: actual token observations and noninteractive
+# resource reservations. This library installs nothing and has no terminal,
+# display, input-injection or native-session activation implementation.
+add_library(ms-native-engine-core STATIC
+  engine/native/identity.cpp engine/native/seat-lifecycle.cpp)
+target_include_directories(ms-native-engine-core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/engine/native")
+target_compile_features(ms-native-engine-core PUBLIC cxx_std_20)
+target_compile_definitions(ms-native-engine-core PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_compile_options(ms-native-engine-core PRIVATE /W4 /WX /utf-8 /permissive- /sdl /guard:cf)
+target_link_libraries(ms-native-engine-core PUBLIC advapi32)
+if(BUILD_TESTING)
+  multiseat_experiment(ms-native-engine-tests engine/native/tests.cpp)
+  target_sources(ms-native-engine-tests PRIVATE engine/native/identity-tests.cpp)
+  target_link_libraries(ms-native-engine-tests PRIVATE ms-native-engine-core)
+  add_test(NAME native-engine-boundaries COMMAND ms-native-engine-tests)
+  set_tests_properties(native-engine-boundaries PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+endif()
+
 # Build the .NET Framework host into the same configuration directory as the
 # native probes. This does not enable child sessions or make any connection.
 option(MULTISEAT_BUILD_CHILD_SESSION_HOST "Build the .NET Framework child-session experiment" ON)
