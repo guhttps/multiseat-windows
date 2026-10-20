@@ -275,12 +275,12 @@ private:
                              const SeatResources& resources, TimePoint now,
                              Duration lifetime) {
         if (lifetime <= Duration::zero() || lifetime > MaximumLifetime ||
-            now > TimePoint::max() - lifetime)
+            now > (TimePoint::max)() - lifetime)
             return Failure(ReservationError::InvalidLifetime);
         if (!ValidResources(resources))
             return Failure(ReservationError::InvalidResources);
         if (identity.SessionId() == 0 ||
-            identity.SessionId() == std::numeric_limits<std::uint32_t>::max())
+            identity.SessionId() == (std::numeric_limits<std::uint32_t>::max)())
             return Failure(ReservationError::InvalidIdentity);
         const auto& peer = records_[1U - Index(seat)];
         if (peer.phase != Phase::Empty) {
@@ -300,7 +300,7 @@ private:
                   known->second.removed)))
                 return Failure(ReservationError::StaleEndpoint);
         }
-        if (generation_ == std::numeric_limits<std::uint64_t>::max())
+        if (generation_ == (std::numeric_limits<std::uint64_t>::max)())
             return Failure(ReservationError::GenerationExhausted);
         Record replacement{Phase::Reserved, Suspension::None, identity,
                            resources, generation_ + 1U, now + lifetime};

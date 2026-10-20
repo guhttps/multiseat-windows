@@ -12,7 +12,7 @@ Se faltar memória ao registrar chegadas ou retiradas, o controlador suspende to
 
 `Reservation` é móvel e não executa callbacks no destrutor. O dono chama `Cancel`; se perder o handle, o temporizador ainda suspende a reserva ao vencer o prazo. Destruir o controlador invalida seus handles. `IsCurrent` consulta somente elegibilidade da reserva: nunca autoriza encaminhar eventos, anexar terminal, autenticar usuário ou apresentar uma tela.
 
-Os testes de política usam identidades e chaves fictícias em `BasicSeatLifecycle<FixtureIdentity>`. O alias de produção usa fatos reais do Windows. Os testes de identidade usam apenas o próprio token e cópias temporárias: nenhuma conta, processo ou sessão é criado. Em runners não interativos, o teste exige a rejeição exata justificada pelos fatos do token. No ambiente interativo, confere equivalência, validade após fechar o handle original e rejeição de cópia com INTERACTIVE deny-only. Os resultados não comprovam dois usuários nativos funcionando.
+Os testes de política usam identidades e chaves fictícias em `BasicSeatLifecycle<FixtureIdentity>`. O alias de produção usa fatos reais do Windows. Os testes de identidade usam apenas o próprio token e cópias temporárias: nenhuma conta, processo ou sessão é criado. Em runners não interativos, o teste exige a rejeição exata justificada pelos fatos do token. No ambiente interativo, confere equivalência, validade após fechar o handle original e rejeição de cópia com INTERACTIVE deny-only. O teste também compila o cabeçalho público com as macros `min`/`max` padrão do Windows habilitadas. Os resultados não comprovam dois usuários nativos funcionando.
 
 Para compilar e testar a base, na Developer PowerShell x64, na raiz do repositório:
 

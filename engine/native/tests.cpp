@@ -1,4 +1,11 @@
+// Exercise the public header as a consumer using Windows' default macros.
+#ifdef NOMINMAX
+#undef NOMINMAX
+#endif
 #include "seat-lifecycle.h"
+#if !defined(min) || !defined(max)
+#error Native public-header compatibility must be checked with Windows min/max macros.
+#endif
 
 #include <chrono>
 #include <iostream>
@@ -77,7 +84,7 @@ void admission_tests() {
     require(policy.Cancel(two), "Peer cancellation failed.");
 
     Policy overflow;
-    rejected(overflow.Reserve(Seat::First, first, resources(10), Policy::TimePoint::max() - 1ms, 2ms),
+    rejected(overflow.Reserve(Seat::First, first, resources(10), (Policy::TimePoint::max)() - 1ms, 2ms),
              ReservationError::InvalidLifetime);
 }
 
