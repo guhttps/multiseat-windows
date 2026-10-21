@@ -1,6 +1,6 @@
 # ADR 0009 — núcleo nativo e investigação da segunda sessão
 
-Data: 2026-10-19. Atualizado em 2026-10-20. Estado: núcleo de identidade/reservas iniciado; integração nativa de sessão, terminal, vídeo e entrada ainda não selecionada. O [ADR 0007](0007-native-engine-gate.md) continua definindo a aprovação do motor.
+Data: 2026-10-19. Atualizado em 2026-10-21. Estado: núcleo de identidade/reservas iniciado e criação de sessão/subsistema H1 demonstrada em VM cliente; integração de terminal, vídeo e entrada ainda não selecionada. O [ADR 0007](0007-native-engine-gate.md) continua definindo a aprovação do motor.
 
 ## Primeira implementação
 
@@ -31,7 +31,7 @@ Um filtro HID pode observar ou modificar pacotes, mas o callback de classe não 
 
 Uma candidata de pesquisa é o protocolo privado do Session Manager, com `RtlConnectToSm`, `RtlSendMsgToSm` e a solicitação `SmStartCsr`. O contrato reverso do [PHNT fixado em 53fbbdc](https://github.com/winsiderss/phnt/blob/53fbbdc5b5d2b08761db1c7b26bfa8c820924356/ntsmss.h) descreve ID, comando inicial e IDs de processos retornados. A [implementação independente do ReactOS, fixada em f53b1d1](https://github.com/reactos/reactos/blob/f53b1d1560120c529763b18963fdee68f39118af/sdk/lib/smlib/smclient.c), fornece uma hipótese sobre alocação de sessão e inicialização de CSRSS. Isso não confirma ABI, suporte ou funcionamento no Windows 11.
 
-A inspeção local encontrou os nomes das duas exportações no ntdll; nenhuma chamada foi realizada. Presença de símbolos é somente metadado. Não existe implementação dessa chamada na biblioteca atual.
+A inspeção inicial encontrou os nomes das duas exportações no ntdll. Depois da revisão da imagem, autorização e recuperação, o [laboratório 010](../lab/010-native-session-creation.md) realizou uma única solicitação no convidado. Criou sessão, CSRSS e comando inicial reais, preservou o console e terminou com restauração externa verificada. A enumeração WTS não apresentou essa sessão de processos como terminal utilizável. O chamador permanece privado e restrito ao laboratório; não existe implementação dessa chamada na biblioteca de produto.
 
 Antes de escrever/executar um chamador, o laboratório deve satisfazer todos estes requisitos:
 
@@ -41,7 +41,7 @@ Antes de escrever/executar um chamador, o laboratório deve satisfazer todos est
 4. Resultado só positivo para esse subteste se houver nova sessão, CSRSS e comando inicial reais nela, preservando o console. Um ID adicional isolado não basta.
 5. Restauração obrigatória do checkpoint; nunca encerrar CSRSS/Winlogon manualmente. `SmStopCsr` não é retorno comprovado: a [referência ReactOS o mantém como stub](https://github.com/reactos/reactos/blob/f53b1d1560120c529763b18963fdee68f39118af/base/system/smss/smloop.c).
 
-Mesmo um resultado positivo provaria somente alocação/subsistema. Ainda seriam necessárias autenticação da segunda conta e ligação do terminal com apresentação e entrada. H1 permanece hipótese de API interna sem suporte confirmado, não motor de produto escolhido nem instrução para executar no computador pessoal.
+O resultado positivo demonstrou somente alocação/subsistema naquela imagem. Ainda são necessárias autenticação da segunda conta e ligação do terminal com apresentação e entrada. H1 permanece uma API interna sem suporte de produto confirmado, sem motor completo escolhido e sem instrução para executar no computador pessoal. Novas rodadas continuam exigindo os mesmos limites, observação e restauração.
 
 ## Vídeo e critérios de avanço
 
