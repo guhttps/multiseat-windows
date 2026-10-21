@@ -28,10 +28,10 @@ O primeiro ensaio identificou uma permissão insuficiente no disco virtual duran
 
 A restauração também revelou uma referência de disco temporário antiga no processo de gerenciamento. A conferência completa da cadeia de discos ocorre no próximo processo independente, antes de iniciar a VM. Objetos antigos do Hyper-V não são usados como evidência de que o estado atual está correto.
 
-Falhas anteriores permanecem separadas dos resultados aprovados. Nenhum processo crítico do Windows foi encerrado e nenhuma chamada privada de criação de sessão foi executada.
+Falhas anteriores permanecem separadas dos resultados aprovados. Nenhum processo crítico do Windows foi encerrado e nenhuma chamada privada de criação de sessão foi executada durante esta qualificação de recuperação. A solicitação posterior está registrada no [laboratório 010](010-native-session-creation.md).
 
 ## Limites e próximo passo
 
-Este resultado prepara a recuperação do laboratório. Não demonstra segunda conta interativa nativa, terminal adicional, atribuição de monitor, isolamento de entrada, áudio ou League of Legends. A revisão completa de ABI e autorização e a observação do console continuam obrigatórias antes de escrever ou executar o chamador de H1.
+Este resultado prepara a recuperação do laboratório. Não demonstra segunda conta interativa nativa, terminal adicional, atribuição de monitor, isolamento de entrada, áudio ou League of Legends. A revisão de ABI e autorização e a observação do console exigidas para a solicitação seguinte foram realizadas no laboratório 010; novas rodadas continuam exigindo revisão e contenção próprias.
 
 Scripts locais, credenciais protegidas, imagens, discos, símbolos e relatórios brutos permanecem fora do Git. Este registro publica somente resultados e limites generalizados.
