@@ -1,6 +1,6 @@
 # Continuidade do desenvolvimento
 
-Atualizado em 2026-10-19. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
+Atualizado em 2026-10-20. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
 
 ## Objetivo
 
@@ -21,6 +21,8 @@ Produto multiseat nativo para Windows, com experiência de configuração compar
 O núcleo inicial está em [engine/native](../engine/native/README.md), com contrato e limites no [ADR 0009](architecture/0009-native-core-and-session-research.md). A identidade vem de token primário real; as reservas são exclusivamente internas e não interativas. Os testes cobrem tokens reais do próprio processo, fixtures de duas identidades, colisões, gerações antigas, retiradas antes da reserva e após cancelamento, suspensão, prazo monotônico e falta de memória no registro. Falha nesse registro suspende todos os postos e exige um novo controlador com observações novas. Nenhum backend de ativação, serviço ou driver foi criado. Não confundir `IsCurrent` da reserva com autorização de entrada ou prova de terminal.
 
 A hipótese nova de sessão H1 é o protocolo privado SMSS/`SmStartCsr`. A presença local das exportações foi conferida sem chamar essas funções. ABI e comportamento no Windows alvo ainda precisam de comprovação; PHNT/ReactOS são referências independentes, não contrato suportado do Windows. Antes de escrever/executar o chamador, cumprir o plano do ADR 0009: VM Windows cliente descartável, checkpoint e restauração externa testados, uma chamada limitada e evidência de sessão/subsistema reais. Não executar no host, não matar CSRSS/Winlogon e não confiar em `SmStopCsr` como retorno comprovado. Mesmo um resultado positivo não resolveria sozinho terminal, autenticação, apresentação ou entrada.
+
+O [laboratório 009](lab/009-native-h1-recovery.md) concluiu a preparação da VM cliente isolada, a conferência dos binários reais e três provas de restauração externa: prazo, perda do coordenador e tarefa benigna sem resposta. Os recibos anteriores com falha permanecem separados; somente as três rodadas aprovadas qualificam a recuperação. A próxima etapa é completar a revisão de ABI/autorização e a observação do console antes de escrever o chamador. Não refazer o provisionamento ou o checkpoint inicial, não repetir sondagens de credencial inválida e não usar referências antigas de disco do Hyper-V como confirmação após restaurar. Credenciais e detalhes operacionais ficam nos registros locais privados.
 
 O [ADR 0008](architecture/0008-backend-code-review.md) registra a revisão de candidatos e a escolha do [laboratório RDS separado](lab/008-rds-transport-comparison.md). Ele usa Windows Server como ambiente auxiliar para contas e transporte; seu resultado não deve ser anunciado como aprovação do produto nativo. Preserve a VM anterior e os relatórios privados.
 
