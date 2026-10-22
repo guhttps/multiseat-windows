@@ -50,6 +50,19 @@ if(BUILD_TESTING)
   set_tests_properties(native-engine-boundaries PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
 endif()
 
+# Reusable D3D texture readback only. No WDK, driver load, desktop acquisition,
+# session connection or device change. Tests generate their own WARP textures.
+add_library(ms-native-frame-readback INTERFACE)
+target_include_directories(ms-native-frame-readback INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/engine/native/display")
+target_compile_features(ms-native-frame-readback INTERFACE cxx_std_20)
+target_link_libraries(ms-native-frame-readback INTERFACE d3d11 dxgi)
+if(BUILD_TESTING)
+  multiseat_experiment(ms-native-frame-tests engine/native/display/tests.cpp)
+  target_link_libraries(ms-native-frame-tests PRIVATE ms-native-frame-readback)
+  add_test(NAME native-frame-readback COMMAND ms-native-frame-tests)
+  set_tests_properties(native-frame-readback PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+endif()
+
 # Build the .NET Framework host into the same configuration directory as the
 # native probes. This does not enable child sessions or make any connection.
 option(MULTISEAT_BUILD_CHILD_SESSION_HOST "Build the .NET Framework child-session experiment" ON)
