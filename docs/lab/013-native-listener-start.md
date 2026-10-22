@@ -1,6 +1,6 @@
 # 013 — entrada no início do listener nativo
 
-Data: 2026-10-21. Estado: entrada real em StartListen observada; verificação integrada com observador explícito pendente. Este registro é parcial e não aprova um listener operacional nem um segundo terminal.
+Data: 2026-10-21. Atualizado em 2026-10-22. Estado: entrada real em StartListen, observação do console e restauração verificadas. Esse subteste não aprova um listener operacional nem um segundo terminal.
 
 ## Configurações e origem das chamadas
 
@@ -18,16 +18,16 @@ O observador do console produziu **zero amostras nessa rodada**. Portanto, essa 
 
 A restauração externa terminou com verificação do estado original, remoção dos elementos próprios do experimento e retorno da configuração global ao bloqueio de conexões remotas. O computador pessoal não recebeu essas alterações.
 
-## Instrumentação e verificação pendente
+## Instrumentação e verificação com observador explícito
 
 Foi corrigida a instrumentação da cota de eventos, mas essa correção não tem causalidade demonstrada para o avanço: as coletas anteriores tinham 30 e 38 eventos, ambas abaixo do limite de 64. A entrada observada não deve ser atribuída a essa correção sem evidência adicional.
 
-Uma nova rodada, com início explícito e conferência do observador do console, está pendente. Seu resultado só pode ser aprovado após combinar callbacks reais, resultado do método, amostras suficientes do console e restauração final verificada. Até essa coleta terminar, não se transfere para ela o resultado da rodada anterior.
+Em 2026-10-22, uma nova rodada iniciou o observador explicitamente depois do login e da disponibilidade do desktop. A coleta reuniu sete amostras de referência e 14 amostras finais, sem amostras não saudáveis. O serviço, módulo, instante de criação e marcador coincidiram; GetSettings retornou sucesso e StartListen recebeu callback não nulo. Os processos originais do console foram preservados no intervalo observado após o boot. A restauração externa verificou o estado de referência, ausência dos elementos do experimento e retorno da configuração de conexões remotas. Essa rodada aprova esse subteste; a tentativa anterior sem amostras permanece inconclusiva.
 
 ## O que continua sem demonstração
 
 Nenhum listener operacional, endpoint de conexão, conexão aceita, login de uma segunda conta, segundo terminal utilizável, monitor físico atribuído, entrada independente, áudio ou jogo foi demonstrado neste ensaio. A documentação de StartListen não lista Windows cliente suportado; callbacks experimentais nesta imagem não ampliam o suporte documentado da plataforma.
 
-A [sessão adicional de processos](010-native-session-creation.md), o [contexto gráfico](011-native-graphics-context.md) e o início do listener são provas separadas. O próximo resultado necessário é concluir a verificação integrada do listener, antes de implementar uma admissão de conexão com recursos e ciclo de vida reais. O [gate nativo](../architecture/0007-native-engine-gate.md) e a [lista de entregas pendentes](../REMAINING-WORK.md) continuam abertos.
+A [sessão adicional de processos](010-native-session-creation.md), o [contexto gráfico](011-native-graphics-context.md) e o início do listener são provas separadas. O próximo resultado necessário é validar uma admissão local autenticada, com callbacks e ciclo de vida reais, mantendo recusa explícita enquanto faltarem os backends de terminal. O [gate nativo](../architecture/0007-native-engine-gate.md) e a [lista de entregas pendentes](../REMAINING-WORK.md) continuam abertos.
 
 Relatórios brutos, identificadores, código operacional e detalhes administrativos permanecem privados. Este documento registra resultados e limites, sem instruções para alterar o computador do leitor.
