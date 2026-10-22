@@ -1,6 +1,6 @@
 # Comece por aqui
 
-Atualizado em 2026-10-16. Este é um protótipo de pesquisa para um produto multiseat independente. O estado real está em [STATUS.md](STATUS.md); duas estações completas para aplicativos externos ainda não foram demonstradas.
+Atualizado em 2026-10-21. Este é um protótipo de pesquisa para um produto multiseat independente. O estado real está em [STATUS.md](STATUS.md); duas estações completas para aplicativos externos ainda não foram demonstradas. Veja a [lista de entregas pendentes](REMAINING-WORK.md) para acompanhar o que falta até o produto completo.
 
 ## Abrir o painel
 
@@ -13,7 +13,7 @@ Versão disponível: [**v0.1.0-experimental.1**](https://github.com/guhttps/mult
 5. Selecione as saídas de áudio desejadas e clique em **Salvar configuração**. Isso guarda um rascunho; o áudio e os aplicativos ainda não são redirecionados.
 6. Para observar os dois pares funcionando nos painéis do protótipo, clique em **Testar dois pares** e siga as instruções da janela de teste. A associação desse teste é feita novamente, separada do plano salvo.
 
-O botão **Iniciar postos** permanece desabilitado porque o motor independente ainda não está implementado. O painel pode ser usado para organizar e testar os dispositivos existentes; não inicia duas contas Windows nem jogos separados.
+O botão **Iniciar postos** permanece desabilitado porque a integração do motor independente ainda não foi concluída. O painel pode ser usado para organizar e testar os dispositivos existentes; não inicia duas contas Windows nem jogos separados.
 
 ## Compilar o código
 
@@ -41,6 +41,8 @@ Revise as seleções depois de trocar cabos, dispositivos ou topologia de telas.
 ## Continuar o desenvolvimento
 
 A prioridade é o [gate do motor nativo](architecture/0007-native-engine-gate.md): contas Windows distintas, monitor físico, foco e entrada independentes, aceleração gráfica e recuperação. Child Sessions e criação de desktops separados ficam como experimentos auxiliares; não resolvem esse conjunto de requisitos.
+
+Na pesquisa em VM, a entrada em StartListen já foi observada no serviço real, com retorno de falha explícito e sem aceitar conexões. A primeira rodada não aprovou continuidade do console por ausência de amostras; a verificação com observador explícito está pendente. Veja o [laboratório 013](lab/013-native-listener-start.md). Esse avanço ainda não cria dois postos utilizáveis.
 
 O [roteiro de comparação em VM](lab/007-clean-windows-comparison.md) preserva o laboratório anterior. A VM não é a solução escolhida para League of Legends. Não é necessário repetir os testes anteriores para compilar ou estudar esta base.
 

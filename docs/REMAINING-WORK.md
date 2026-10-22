@@ -1,0 +1,42 @@
+# O que falta para o produto funcionar
+
+O objetivo continua sendo um concorrente completo do ASTER, com implementação independente. **O motor ainda não entrega dois postos nativos utilizáveis.** O bloqueio imediato é completar a integração de terminal, autenticação, apresentação gráfica e entrada; criar uma sessão de processos ou carregar um componente não resolve esse conjunto.
+
+Este checklist organiza a conclusão do produto. O resultado detalhado e atualizado de cada experimento fica em [STATUS.md](STATUS.md); a retomada técnica fica em [DEVELOPMENT-NEXT.md](DEVELOPMENT-NEXT.md). Os marcos e suas dependências estão no [roadmap](../ROADMAP.md).
+
+## O que já existe
+
+- **Painel e download experimental:** instalador por usuário, ZIP portátil, inventário de dispositivos, plano local de dois postos e demonstração com dois pares de teclado/mouse nos painéis próprios. O botão de iniciar postos continua desabilitado. A distribuição ainda não tem assinatura de código e não inclui o motor. Veja [download e instalação](DOWNLOAD-INSTALL.md).
+- **Laboratório RDS separado:** duas contas e aplicativos externos, roteamento de entrada, recuperação e verificações automatizadas. Há confirmação física de digitação, foco e reabertura independente; a coleta completa de hotplug físico e medidas quantitativas ainda tem lacunas. Esse laboratório Windows Server não aprova o produto nativo no Windows cliente. Veja [laboratório 008](lab/008-rds-transport-comparison.md).
+- **Pesquisa nativa:** núcleo de identidade e reservas testado; criação real de uma sessão adicional de processos em VM; carregamento, configurações e entrada em StartListen observados no serviço real do Windows. StartListen ainda retorna uma falha explícita, sem abrir conexões. A rodada inicial dessa entrada foi restaurada, mas não aprovou continuidade do console porque o observador não produziu amostras; uma nova rodada com observador explícito continua pendente. A sessão adicional ainda não tem terminal gráfico utilizável. Veja os laboratórios [010](lab/010-native-session-creation.md), [011](lab/011-native-graphics-context.md), [012](lab/012-native-terminal-provider.md) e [013](lab/013-native-listener-start.md).
+- **Publicação:** repositório público, CI e verificações de conteúdo e segredos; distribuição experimental publicada. A revisão de privacidade é contínua, sem garantia absoluta de ausência de dados sensíveis. Veja [revisão de publicação](PUBLICATION-REVIEW.md).
+
+## Checklist de conclusão, em ordem de dependência
+
+1. [ ] **Completar o segundo terminal nativo.** Concluir a verificação do início do listener e avançar para conexão e autenticação de uma segunda conta Windows, com um terminal utilizável. Conferir identidades reais, sessões, processos e perfis, preservando o console original. A entrada em StartListen e os callbacks já observados são resultados intermediários. A candidata permanece em pesquisa até cumprir o [gate nativo](architecture/0007-native-engine-gate.md).
+
+2. [ ] **Entregar dois monitores e entrada independentes.** Apresentar aplicativos externos simultaneamente nos dois monitores físicos atribuídos, verificar aceleração gráfica e encaminhar cada teclado/mouse somente ao posto correto. Demonstrar foco, movimento, cliques e teclas mantidas enquanto o outro usuário troca de aplicativo. Duas janelas cooperativas ou dois IDs de sessão não satisfazem essa prova. Registrar o caminho efetivo da imagem e da entrada.
+
+3. [ ] **Integrar identidade, segurança e ciclo de vida.** Fazer login, bloqueio, UAC, encerramento e reinício de cada posto respeitarem a conta correspondente, sem expor credenciais, arquivos ou entrada do outro usuário. Integrar o núcleo de reservas ao mecanismo real, com permissões mínimas e canais de controle autenticados. Encerrar um posto deve preservar o outro e liberar os recursos corretamente.
+
+4. [ ] **Concluir recuperação e hotplug no motor real.** Testar falha de processo/serviço, desconexão e reconexão de teclado, mouse, monitor e áudio. Comprovar que o posto intacto continua utilizável, que eventos antigos não são reaplicados e que dispositivos não mudam silenciosamente de dono. Conferir retorno ao estado anterior após falha de instalação ou configuração. Os testes sintéticos e a restauração da VM auxiliam essa etapa; não substituem a validação física do produto.
+
+5. [ ] **Entregar áudio por posto.** Associar saídas e, quando disponíveis, entradas de áudio às contas e aos aplicativos externos. Reproduzir duas fontes distintas nos dispositivos escolhidos, sem cruzamento; conferir captura, desconexão, reconexão e troca de endpoint. Ter um seletor de áudio no plano ainda não comprova o roteamento.
+
+6. [ ] **Validar jogos e desempenho, começando pelo LoL.** Depois da prova com aplicativos comuns, testar duas contas Riot em partidas simultâneas, com o Vanguard funcionando normalmente. Aplicar os critérios P01–P08 do [escopo do produto](PRODUCT-SCOPE.md), incluindo duração, ausência de entrada cruzada e medições de FPS, latência, CPU, GPU e RAM. Registrar resolução, qualidade e comparação entre um e dois postos. Não anunciar suporte a LoL, outros jogos ou anti-cheats antes da evidência; não contornar suas proteções para aprovar o teste.
+
+7. [ ] **Conectar o painel ao motor e simplificar a configuração.** Usar um fluxo familiar de identificar dispositivos, atribuí-los aos postos, validar o plano e iniciar/parar cada posto. Implementar interface, textos e recursos visuais próprios, com acessibilidade, estados claros e erros recuperáveis. Testar aplicação e persistência da configuração após reinício e mudança de hardware. A experiência pretendida é comparável à do ASTER; seus componentes e sua identidade visual não são entregas deste projeto.
+
+8. [ ] **Distribuir o motor com instalação simples e reversível.** Integrar somente os serviços e drivers cuja necessidade estiver demonstrada. Testar instalação limpa, atualização, falha com rollback e desinstalação, incluindo reinicialização quando necessária e preservação ou remoção explícita das preferências. Preparar assinatura do aplicativo/instalador e, se houver driver, o processo de assinatura e validação aplicável. O instalador experimental atual instala apenas o painel e diagnósticos. Publicar uma nova versão com manifesto, hashes, notas claras e instruções sem ferramentas de desenvolvimento.
+
+9. [ ] **Definir e validar o suporte oferecido.** Fechar versões/edições de Windows, GPUs e drivers, conexões de monitor, dispositivos de entrada/áudio, quantidade máxima de postos e requisitos mínimos. Publicar uma matriz baseada em testes, com limitações e incompatibilidades. Decidir a licença do código e o modelo de contribuições; revisar direitos de dependências e requisitos de licenciamento da plataforma antes da distribuição pretendida. Repositório público não equivale à concessão automática de uma licença. Essas decisões ainda estão abertas.
+
+10. [ ] **Qualificar a versão de produto.** Executar testes prolongados e a matriz de compatibilidade sobre a mesma versão integrada; corrigir as falhas e repetir as verificações afetadas. Aprovar o gate nativo e os critérios de aceitação com evidência rastreável. Preparar diagnóstico que preserve privacidade, canal de suporte, atualizações verificadas e recuperação para versões anteriores quando aplicável. Só então apresentar a versão como produto funcional dentro do suporte comprovado.
+
+## Trabalho contínuo durante todas as etapas
+
+- [ ] Manter código, documentação, releases e perfil do GitHub coerentes com os resultados reais; aprovar merges somente com as verificações obrigatórias concluídas.
+- [ ] Revisar arquivos, histórico, autoria, dependências e artefatos antes de publicar. Manter senhas, identificadores de usuários/dispositivos, caminhos pessoais, capturas e resultados brutos fora do Git. Seguir [SECURITY.md](../SECURITY.md).
+- [ ] Automatizar testes repetíveis e agrupar validações físicas com hipóteses claras, pedindo participação somente quando a prova depender de hardware ou de uma confirmação do Windows.
+
+O próximo trabalho é o item 1, seguido da integração dos itens 2 e 3. Áudio, jogos, interface final e instalador do motor dependem dessa prova. Não há prazo ou percentual de conclusão confiável enquanto a integração nativa central permanecer aberta.
