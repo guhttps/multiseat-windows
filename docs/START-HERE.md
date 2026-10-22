@@ -30,6 +30,8 @@ ctest --test-dir build -C Release --output-on-failure
 
 O CMake compila o painel, os diagnósticos e o host C# do experimento de sessão filha. O CTest usa verificações de leitura, smoke e testes sintéticos; não conecta sessões filhas nem habilita RDP. Para abrir apenas o diagnóstico de ambiente, execute `.\build\Release\ms-diagnostic.exe`.
 
+A base de [leitura gráfica nativa](../engine/native/display/README.md) também tem teste automático: `ctest --test-dir build -C Release -R native-frame-readback --output-on-failure`. Ele usa texturas geradas em software, sem capturar a tela ou instalar driver. O [laboratório 015](lab/015-native-display-foundation.md) explica o resultado e a integração pendente.
+
 Para testar a associação de dois teclados e dois mouses aos painéis próprios, siga o [laboratório 005](lab/005-seat-demo.md). Esse experimento não isola jogos ou aplicativos externos.
 
 ## Suas seleções e privacidade
