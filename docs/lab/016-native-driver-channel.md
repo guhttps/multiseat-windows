@@ -26,6 +26,8 @@ O INF passou em InfVerif `/w` e `/h`, e o pacote passou no teste de requisitos d
 
 ## Próxima integração
 
-Falta confirmar a sequência real dos callbacks, vincular a admissão à sessão criada pelo Windows e observar o dispositivo remoto correto. A prova precisa carregar o driver, autenticar a requisição WDF, obter monitor ativo e frames reais e encerrar com recuperação verificada. Os ensaios de pacote e token não repetiram a admissão. Uma rodada posterior e separada retornou sucesso em `OnConnected`, mas não completou prontidão ou fechamento; o resultado e seus limites estão no [laboratório 014](014-native-local-admission.md).
+Falta vincular a admissão à sessão criada pelo Windows e observar o dispositivo remoto correto. A prova precisa carregar o driver, autenticar a requisição WDF, obter monitor ativo e frames reais e encerrar com recuperação verificada. Os ensaios de pacote e token não repetiram a admissão. Uma rodada posterior e separada concluiu o ciclo de recusa controlada: `OnConnected` e `OnReady` retornaram sucesso, `AcceptConnection` recusou a continuação por indisponibilidade e o serviço fechou a conexão. O ensaio foi restrito à imagem conferida e não aceitou um terminal; seus controles e a divergência da ordem documentada estão no [laboratório 014](014-native-local-admission.md).
+
+O próximo alvo inclui `GetInputHandles`, seu consumidor efetivo e a ligação real entre sessão e display. A hipótese estática sobre a ordem de notificação e carregamento do display ainda não foi qualificada em execução. O ciclo de recusa não comprova requisição WDF, driver ligado à sessão ou frames reais.
 
 Segunda conta autenticada, entrada independente, monitores físicos, áudio, jogos e instalador do motor continuam pendentes. O download experimental existente continua sendo painel e diagnósticos.
