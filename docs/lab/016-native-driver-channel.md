@@ -26,6 +26,6 @@ O INF passou em InfVerif `/w` e `/h`, e o pacote passou no teste de requisitos d
 
 ## Próxima integração
 
-Falta confirmar a sequência real dos callbacks, vincular a admissão à sessão criada pelo Windows e observar o dispositivo remoto correto. A prova precisa carregar o driver, autenticar a requisição WDF, obter monitor ativo e frames reais e encerrar com recuperação verificada. A última chamada real de `OnConnected` continua com `E_POINTER`; os ensaios de pacote e token não repetiram nem resolveram essa chamada.
+Falta confirmar a sequência real dos callbacks, vincular a admissão à sessão criada pelo Windows e observar o dispositivo remoto correto. A prova precisa carregar o driver, autenticar a requisição WDF, obter monitor ativo e frames reais e encerrar com recuperação verificada. Os ensaios de pacote e token não repetiram a admissão. Uma rodada posterior e separada retornou sucesso em `OnConnected`, mas não completou prontidão ou fechamento; o resultado e seus limites estão no [laboratório 014](014-native-local-admission.md).
 
 Segunda conta autenticada, entrada independente, monitores físicos, áudio, jogos e instalador do motor continuam pendentes. O download experimental existente continua sendo painel e diagnósticos.

@@ -1,6 +1,6 @@
 # 014 — canal local para admissão no provedor nativo
 
-Data: 2026-10-22. Estado: endpoint e autenticação do cliente local observados; OnConnected retorna E_POINTER. O ciclo completo de admissão continua pendente. Nenhum segundo terminal utilizável foi demonstrado.
+Atualizado em 2026-10-23. Estado: endpoint, autenticação do cliente local e retorno de sucesso em OnConnected observados. A prontidão e o encerramento completo da admissão continuam pendentes. Nenhum segundo terminal utilizável foi demonstrado.
 
 ## Escopo e origem da evidência
 
@@ -30,7 +30,17 @@ A [documentação de segurança de named pipes](https://learn.microsoft.com/en-u
 
 A rodada seguinte confirmou a correção no serviço real: endpoint pronto, solicitação recebida e identidade do cliente validada contra os controles esperados. O cliente terminou com código zero depois do fechamento do canal. A chamada real de [OnConnected](https://learn.microsoft.com/en-us/windows/win32/api/wtsprotocol/nf-wtsprotocol-iwrdsprotocollistenercallback-onconnected), porém, devolveu **E_POINTER**. Não houve sucesso de conexão, prontidão ou a sequência planejada de recusa e fechamento pelo serviço. O fechamento do canal e a saída zero do cliente não foram contados como prova dessas etapas.
 
-O console e os processos de sessão foram preservados, e a restauração externa conferiu todos os estados esperados, incluindo segurança original do diretório, serviço, configuração de conexões remotas e ausência dos elementos do experimento. O transporte local autenticado avançou; a tentativa completa de admissão permanece negativa. O próximo diagnóstico deve identificar a origem de E_POINTER e os dados ou interfaces exigidos, sem inventar backends, credenciais ou handles para obter sucesso aparente.
+O console e os processos de sessão foram preservados, e a restauração externa conferiu todos os estados esperados, incluindo segurança original do diretório, serviço, configuração de conexões remotas e ausência dos elementos do experimento. O transporte local autenticado avançou; a tentativa completa de admissão permaneceu negativa nessa rodada.
+
+## Retorno de sucesso com a interface de display adicional
+
+A rodada posterior implementou a interface separada `IWRdsWddmIddProps1` definida no SDK, disponível somente depois da validação real do transporte. Ela preservou a identidade COM e retornou indisponibilidade nos métodos de hardware e carregamento. A interface antiga que transfere um handle continuou recusada. Nenhum identificador de driver ou handle fictício foi fornecido.
+
+O serviço real consultou essa interface e `OnConnected` retornou **S_OK**. Processo, instante de criação e marcador da rodada coincidiram com a coleta independente. O console e seus processos de sessão foram preservados. Não foram observados sucesso em `OnReady`, recusa em `AcceptConnection`, fechamento pelo serviço ou saída zero do cliente nessa janela. O resultado completo da admissão continua negativo; o retorno de um método não comprova um terminal.
+
+A restauração externa de dois minutos passou, com ausência dos arquivos, tarefas e registros próprios, retorno da segurança do diretório e configuração original do serviço e das conexões remotas. O coordenador próprio encerrou. Uma falha anterior de preparação e uma comparação incorreta entre hashes em maiúsculas/minúsculas permanecem registradas separadamente; a auditoria corrigida confirmou o estado restaurado sem fabricar um recibo anterior à execução.
+
+O diagnóstico seguinte distingue ausência de chamada de recusa das verificações ou falha na gravação do registro. A [sequência documentada de OnReady](https://learn.microsoft.com/en-us/windows/win32/api/wtsprotocol/nf-wtsprotocol-iwrdsprotocolconnectioncallback-onready) exige a chamada anterior de `GetLogonErrorRedirector`; esse requisito foi preservado. A candidata acrescentou espera limitada e comunicação explícita da tentativa incompleta pelo callback real de [BrokenConnection](https://learn.microsoft.com/en-us/windows/win32/api/wtsprotocol/nf-wtsprotocol-iwrdsprotocolconnectioncallback-brokenconnection), fora de chamadas de entrada e sem alterar permissões. Ela passou em 100 ciclos locais de contrato e ciclo de vida, nas verificações de IPC próprio e na análise estática. Sua execução na VM ainda precisa de resultado próprio; esses testes não comprovam o fechamento pelo serviço.
 
 A aprovação da admissão exigirá evidência própria de cliente autenticado, chamadas de conexão e prontidão, recusa explícita enquanto faltarem backends, encerramento real e preservação do console, seguida da recuperação obrigatória. Sucesso em StartListen não satisfaz esse conjunto.
 
