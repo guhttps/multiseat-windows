@@ -63,6 +63,18 @@ if(BUILD_TESTING)
   set_tests_properties(native-frame-readback PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
 endif()
 
+# Experimental fixed-size status messages and sequence policy. This target
+# registers no driver interface, opens no device and authenticates no caller.
+add_library(ms-native-status-protocol INTERFACE)
+target_include_directories(ms-native-status-protocol INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/engine/native/channel")
+target_compile_features(ms-native-status-protocol INTERFACE cxx_std_20)
+if(BUILD_TESTING)
+  multiseat_experiment(ms-native-status-tests engine/native/channel/tests.cpp)
+  target_link_libraries(ms-native-status-tests PRIVATE ms-native-status-protocol)
+  add_test(NAME native-status-protocol COMMAND ms-native-status-tests)
+  set_tests_properties(native-status-protocol PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+endif()
+
 # Build the .NET Framework host into the same configuration directory as the
 # native probes. This does not enable child sessions or make any connection.
 option(MULTISEAT_BUILD_CHILD_SESSION_HOST "Build the .NET Framework child-session experiment" ON)

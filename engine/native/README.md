@@ -1,5 +1,7 @@
 # Núcleo inicial do motor nativo
 
+O [protocolo de status](channel/README.md) acrescenta validação de mensagens, sequência e geração do fluxo, com teste automático em memória. Ele não abre um canal ou autentica seu chamador. A integração de serviço/driver continua em pesquisa no [laboratório 016](../../docs/lab/016-native-driver-channel.md).
+
 Esta biblioteca começa o controle de identidade e recursos do motor Windows. Ela ainda não cria sessões ou terminais, não apresenta desktops e não entrega entrada. A base de [leitura de texturas D3D11](display/README.md) oferece um módulo gráfico separado e testável. Não há serviço, driver, transporte RDS ou backend nativo simulado nesta pasta. O gate do [ADR 0007](../../docs/architecture/0007-native-engine-gate.md) permanece aberto.
 
 `VerifiedIdentity` captura fatos de um token primário real, com uma duplicação privada e somente consulta. Exige usuário interativo, sessão diferente de zero, SID de usuário válido, logon SID habilitado e AuthenticationId. Rejeita impersonação e identidades de serviço. SID, identificador de logon e handle não são exportados nem registrados. `SameLogon` compara a encarnação de logon; copiar um token não cria outra identidade. A captura não autentica IPC nem comprova que a sessão continua conectada ou tem um terminal.
