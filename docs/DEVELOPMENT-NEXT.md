@@ -1,6 +1,6 @@
 # Continuidade do desenvolvimento
 
-Atualizado em 2026-10-23. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
+Atualizado em 2026-10-26. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
 
 ## Objetivo
 
@@ -17,6 +17,8 @@ Produto multiseat nativo para Windows, com experiência de configuração compar
 - Painel Windows para planejar duas estações publicado em [v0.1.0-experimental.1](https://github.com/guhttps/multiseat-windows/releases/tag/v0.1.0-experimental.1), com instalador por usuário e ZIP. Compilação limpa, instalação/desinstalação, hashes e downloads anônimos verificados. Painel instalado no ambiente alvo e inicialização validada. Isso não aprova um motor multiseat.
 
 ## Retomar sem repetir trabalho
+
+O resultado mais recente está no [laboratório 017](lab/017-native-input-integration.md): política de entrada e negociação de capacidades avançaram no código, mas SwDeviceCreate foi recusada antes do callback e não houve execução confirmada do driver. As duas rodadas terminaram restauradas e verificadas. Preserve a falha; nenhuma hipótese posterior foi aprovada como correção. Priorize a integração que permita aceitar o segundo terminal e operar um aplicativo externo com entrada e imagem independentes. Não ampliar testes auxiliares sem uma hipótese ligada a esse bloqueio, nem contar compilação e fixtures como postos funcionando.
 
 O [laboratório 016](lab/016-native-driver-channel.md) registra o protocolo público testado, candidatos de canal compilados/analisados, pacote próprio assinado e aceito no DriverStore e ensaio separado com o token real do serviço, todos com recuperação conferida. A abertura direta do processo como LocalService recebeu acesso negado; o candidato usa impersonação por requisição para obter somente consulta/sincronização. Ainda falta verificar o token entregue pelo UMDF ao driver e a ligação à sessão criada pelo Windows. O avanço mais recente está no [laboratório 014](lab/014-native-local-admission.md): um ensaio específico da imagem, com módulo carregado conferido e autorização de uso único, completou OnConnected, OnReady, recusa em AcceptConnection e Close real pelo serviço. Cliente e coordenador encerraram, o console foi preservado e a restauração passou. A exceção experimental à ordem documentada não amplia o suporte da API nem comprova um terminal utilizável. As descrições dos laboratórios anteriores abaixo preservam o contexto de cada etapa.
 
