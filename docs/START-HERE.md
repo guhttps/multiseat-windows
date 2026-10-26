@@ -1,6 +1,6 @@
 # Comece por aqui
 
-Atualizado em 2026-10-22. Este é um protótipo de pesquisa para um produto multiseat independente. O estado real está em [STATUS.md](STATUS.md); duas estações completas para aplicativos externos ainda não foram demonstradas. Veja a [lista de entregas pendentes](REMAINING-WORK.md) para acompanhar o que falta até o produto completo.
+Atualizado em 2026-10-26. Este é um protótipo de pesquisa para um produto multiseat independente. O estado real está em [STATUS.md](STATUS.md); duas estações completas para aplicativos externos ainda não foram demonstradas. Veja a [lista de entregas pendentes](REMAINING-WORK.md) para acompanhar o que falta até o produto completo.
 
 ## Abrir o painel
 
@@ -44,7 +44,7 @@ Revise as seleções depois de trocar cabos, dispositivos ou topologia de telas.
 
 A prioridade é o [gate do motor nativo](architecture/0007-native-engine-gate.md): contas Windows distintas, monitor físico, foco e entrada independentes, aceleração gráfica e recuperação. Child Sessions e criação de desktops separados ficam como experimentos auxiliares; não resolvem esse conjunto de requisitos.
 
-Na pesquisa em VM, a entrada em StartListen e a continuidade do console foram verificadas no [laboratório 013](lab/013-native-listener-start.md). A candidata posterior abriu o canal local; depois da correção de leitura de atributos, recebeu a solicitação e validou o cliente. OnConnected ainda falha, portanto o ciclo completo de admissão continua pendente. Os experimentos concluídos restauraram o laboratório. Veja o [laboratório 014](lab/014-native-local-admission.md). Esse avanço ainda não cria dois postos utilizáveis.
+Na pesquisa em VM, o provedor já concluiu um ciclo de recusa controlada: OnConnected e OnReady retornaram sucesso, AcceptConnection recusou a continuação por falta dos backends e o serviço fechou a conexão. Os controles e limites estão no [laboratório 014](lab/014-native-local-admission.md). A integração de entrada avançou na compilação e nos testes isolados, mas a criação do dispositivo virtual foi recusada, conforme o [laboratório 017](lab/017-native-input-integration.md). As rodadas concluídas restauraram o laboratório. Nenhuma delas demonstrou dois postos nativos utilizáveis.
 
 O [roteiro de comparação em VM](lab/007-clean-windows-comparison.md) preserva o laboratório anterior. A VM não é a solução escolhida para League of Legends. Não é necessário repetir os testes anteriores para compilar ou estudar esta base.
 
