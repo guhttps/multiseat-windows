@@ -36,7 +36,8 @@ target_link_libraries(ms-child-session-probe PRIVATE wtsapi32 ole32 oleaut32)
 # resource reservations. This library installs nothing and has no terminal,
 # display, input-injection or native-session activation implementation.
 add_library(ms-native-engine-core STATIC
-  engine/native/identity.cpp engine/native/seat-lifecycle.cpp)
+  engine/native/identity.cpp engine/native/seat-lifecycle.cpp
+  engine/native/ipc/authenticated-pipe.cpp)
 target_include_directories(ms-native-engine-core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/engine/native")
 target_compile_features(ms-native-engine-core PUBLIC cxx_std_20)
 target_compile_definitions(ms-native-engine-core PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
@@ -48,6 +49,13 @@ if(BUILD_TESTING)
   target_link_libraries(ms-native-engine-tests PRIVATE ms-native-engine-core)
   add_test(NAME native-engine-boundaries COMMAND ms-native-engine-tests)
   set_tests_properties(native-engine-boundaries PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+
+  # Authenticated local control-plane IPC. The test drives a real pipe and a
+  # real child-process client; it creates no session, terminal, service or
+  # driver and routes no input.
+  multiseat_experiment(ms-native-ipc-tests engine/native/ipc/tests.cpp)
+  target_link_libraries(ms-native-ipc-tests PRIVATE ms-native-engine-core)
+  add_test(NAME native-ipc-authentication COMMAND ms-native-ipc-tests)
 endif()
 
 # Reusable D3D texture readback only. No WDK, driver load, desktop acquisition,
@@ -140,6 +148,7 @@ if(BUILD_TESTING)
   endif()
   get_property(multiseat_tests DIRECTORY PROPERTY TESTS)
   set_tests_properties(${multiseat_tests} PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+  set_tests_properties(native-ipc-authentication PROPERTIES TIMEOUT 60)
 endif()
 
 # Compile the guest observer in the default build so the C# security analysis
