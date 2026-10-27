@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <cwchar>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -48,12 +49,33 @@ void Require(bool condition, const char* message) {
     }
 }
 
-[[nodiscard]] std::wstring MakeName(unsigned sequence) {
+// The pipe name family is fixed: \\.\pipe\ms-native-ipc-<pid>-<sequence>. A child
+// never receives a name on its command line; it receives only the parent's PID and
+// a numeric sequence and rebuilds the name here, so no command-line string can flow
+// into CreateFile.
+[[nodiscard]] std::wstring MakeNameFor(unsigned pid, unsigned sequence) {
     std::wstring name = L"\\\\.\\pipe\\ms-native-ipc-";
-    name += std::to_wstring(GetCurrentProcessId());
+    name += std::to_wstring(pid);
     name += L'-';
     name += std::to_wstring(sequence);
     return name;
+}
+[[nodiscard]] std::wstring MakeName(unsigned sequence) {
+    return MakeNameFor(GetCurrentProcessId(), sequence);
+}
+// Strict, bounded decimal parse (digits only, <= 2^32-1). A non-numeric or
+// out-of-range token is rejected, so an argument can only ever contribute a
+// bounded integer to the name, never a path.
+[[nodiscard]] bool ParseBoundedUint(const wchar_t* text, unsigned& out) {
+    if (text == nullptr || text[0] == L'\0') return false;
+    unsigned long long value = 0;
+    for (const wchar_t* p = text; *p != L'\0'; ++p) {
+        if (*p < L'0' || *p > L'9') return false;
+        value = value * 10ull + static_cast<unsigned long long>(*p - L'0');
+        if (value > 0xFFFFFFFFull) return false;
+    }
+    out = static_cast<unsigned>(value);
+    return true;
 }
 
 // Owns a spawned client process. If it is never waited (for example because an
@@ -95,7 +117,11 @@ private:
     bool reaped_ = false;
 };
 
-[[nodiscard]] Child SpawnSelf(const wchar_t* mode, const std::wstring& name) {
+// Spawns the test binary with a mode and exactly two command-line tokens. Normal
+// scenarios pass numeric tokens via SpawnSelf; the invalid-argument regression
+// passes inert tokens directly to prove they are refused before any I/O.
+[[nodiscard]] Child SpawnSelfTokens(const wchar_t* mode, const std::wstring& first,
+                                    const std::wstring& second) {
     wchar_t self[MAX_PATH] = {};
     const DWORD length = GetModuleFileNameW(nullptr, self, MAX_PATH);
     Require(length != 0 && length < MAX_PATH, "ipc test: resolving the own module path failed.");
@@ -104,7 +130,9 @@ private:
     command += L"\" ";
     command += mode;
     command += L" ";
-    command += name;
+    command += first;
+    command += L" ";
+    command += second;
     std::vector<wchar_t> mutable_command(command.begin(), command.end());
     mutable_command.push_back(L'\0');
     STARTUPINFOW startup{};
@@ -119,6 +147,12 @@ private:
 #pragma warning(suppress : 6335)
     return Child(info.hProcess);
 }
+// The child receives only the parent's PID and a numeric scenario; it rebuilds the
+// pipe name inside the fixed family, so no path from the command line reaches
+// CreateFile.
+[[nodiscard]] Child SpawnSelf(const wchar_t* mode, unsigned sequence) {
+    return SpawnSelfTokens(mode, std::to_wstring(GetCurrentProcessId()), std::to_wstring(sequence));
+}
 
 // Child exit codes. Each scenario requires exactly one expected outcome.
 constexpr int kChildOk = 0;
@@ -126,6 +160,7 @@ constexpr int kChildFailed = 2;
 constexpr int kChildUnexpected = 3;
 constexpr int kChildSawClose = 4;
 constexpr int kChildDenied = 5;
+constexpr int kChildBadArg = 6;
 
 [[nodiscard]] std::vector<unsigned char> FrameHeader(std::uint32_t declared) {
     return {static_cast<unsigned char>(declared & 0xFF), static_cast<unsigned char>((declared >> 8) & 0xFF),
@@ -476,7 +511,7 @@ void AcceptCancelled() {
 void PositivePeerExchange(bool seat, std::optional<IdentityFailure> non_seat) {
     const std::wstring name = MakeName(1);
     auto server = AuthenticatedPipeServer::Create(name, {}, seat ? CurrentLogonPolicy() : L"");
-    auto child = SpawnSelf(L"--ipc-client", name);
+    auto child = SpawnSelf(L"--ipc-client", 1);
     const auto peer = AcceptChild(server, seat, non_seat);
 
     if (seat) {
@@ -551,7 +586,7 @@ void ServerStalledFrameFailsClosed(bool seat, std::optional<IdentityFailure> non
     PipeLimits limits;
     limits.deadline_ms = 3000;
     auto server = AuthenticatedPipeServer::Create(name, limits);
-    auto child = SpawnSelf(L"--ipc-client-stall", name);
+    auto child = SpawnSelf(L"--ipc-client-stall", 5);
     (void)AcceptChild(server, seat, non_seat);
     if (seat) {
         bool timed_out = false;
@@ -577,7 +612,7 @@ void ServerStalledFrameFailsClosed(bool seat, std::optional<IdentityFailure> non
 void AnonymousPeerRejected() {
     const std::wstring name = MakeName(6);
     auto server = AuthenticatedPipeServer::Create(name);
-    auto child = SpawnSelf(L"--ipc-client-anonymous", name);
+    auto child = SpawnSelf(L"--ipc-client-anonymous", 6);
     std::optional<PipeFailure> reason;
     DWORD win32 = ERROR_SUCCESS;
     try {
@@ -603,7 +638,7 @@ void ForeignLogonPolicyDenied() {
     limits.deadline_ms = 300;
     // Well-formed logon SID shape; the zero logon sequence is not the child's.
     auto server = AuthenticatedPipeServer::Create(name, limits, L"S-1-5-5-0-0");
-    auto child = SpawnSelf(L"--ipc-client-denied", name);
+    auto child = SpawnSelf(L"--ipc-client-denied", 7);
     Require(child.Wait(15000) == kChildDenied,
             "ipc test: a client outside the configured logon policy was not denied at open.");
     bool timed_out = false;
@@ -655,7 +690,7 @@ void OversizeReadRejected(bool seat, std::optional<IdentityFailure> non_seat) {
     PipeLimits limits;
     limits.max_message_bytes = 1000;
     auto server = AuthenticatedPipeServer::Create(name, limits);
-    auto child = SpawnSelf(L"--ipc-client-big", name);
+    auto child = SpawnSelf(L"--ipc-client-big", 4);
     (void)AcceptChild(server, seat, non_seat);
     if (seat) {
         bool too_large = false;
@@ -738,23 +773,34 @@ void OversizeReadRejected(bool seat, std::optional<IdentityFailure> non_seat) {
     return result;
 }
 
+// Regression: a child invoked with a non-numeric identifier must refuse before
+// any I/O — it never builds a name or opens an object. Inert tokens only.
+void CliRejectsInvalidIdentifiers() {
+    auto child = SpawnSelfTokens(L"--ipc-client", L"not-a-number", L"0");
+    Require(child.Wait(10000) == static_cast<DWORD>(kChildBadArg),
+            "ipc test: a child with a non-numeric identifier was not refused before I/O.");
+}
+
 } // namespace
 
 int wmain(int argc, wchar_t** argv) {
-    if (argc >= 3 && std::wcscmp(argv[1], L"--ipc-client") == 0) {
-        return RunClient(argv[2], false);
-    }
-    if (argc >= 3 && std::wcscmp(argv[1], L"--ipc-client-big") == 0) {
-        return RunClient(argv[2], true);
-    }
-    if (argc >= 3 && std::wcscmp(argv[1], L"--ipc-client-stall") == 0) {
-        return RunRawClient(argv[2], SECURITY_IDENTIFICATION, true);
-    }
-    if (argc >= 3 && std::wcscmp(argv[1], L"--ipc-client-anonymous") == 0) {
-        return RunRawClient(argv[2], SECURITY_ANONYMOUS, false);
-    }
-    if (argc >= 3 && std::wcscmp(argv[1], L"--ipc-client-denied") == 0) {
-        return RunDeniedClient(argv[2]);
+    // Child invocation: argv[1] is a mode in the --ipc-client family, argv[2] is
+    // the parent PID and argv[3] a numeric scenario. The pipe name is rebuilt here
+    // from those bounded integers, and a missing or non-numeric identifier is
+    // refused before any I/O, so no command-line string ever reaches CreateFile.
+    if (argc >= 2 && std::wcsncmp(argv[1], L"--ipc-client", 12) == 0) {
+        unsigned pid = 0;
+        unsigned sequence = 0;
+        if (argc < 4 || !ParseBoundedUint(argv[2], pid) || !ParseBoundedUint(argv[3], sequence)) {
+            return kChildBadArg;
+        }
+        const std::wstring name = MakeNameFor(pid, sequence);
+        if (std::wcscmp(argv[1], L"--ipc-client") == 0) return RunClient(name, false);
+        if (std::wcscmp(argv[1], L"--ipc-client-big") == 0) return RunClient(name, true);
+        if (std::wcscmp(argv[1], L"--ipc-client-stall") == 0) return RunRawClient(name, SECURITY_IDENTIFICATION, true);
+        if (std::wcscmp(argv[1], L"--ipc-client-anonymous") == 0) return RunRawClient(name, SECURITY_ANONYMOUS, false);
+        if (std::wcscmp(argv[1], L"--ipc-client-denied") == 0) return RunDeniedClient(name);
+        return kChildBadArg;
     }
     try {
         const auto non_seat = NonSeatCategory();
@@ -764,6 +810,7 @@ int wmain(int argc, wchar_t** argv) {
         InfiniteDeadlineRejected();
         PolicyAndNameRejected();
         NamespaceEscapeNamesRejected();
+        CliRejectsInvalidIdentifiers();
         ExistingImpersonationPreserved();
         Require(!ThreadIsImpersonating(), "ipc test: the own-thread fixture was not restored.");
         AcceptCancelled();
