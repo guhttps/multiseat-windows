@@ -94,6 +94,13 @@ fail-closed em erro de I/O.
   de kernel defeituoso. Desconexão no meio de um quadro é `Disconnected`.
 - **Instância única:** criado com `FILE_FLAG_FIRST_PIPE_INSTANCE`; um segundo
   `Create` do mesmo nome é recusado.
+- **Nome do endpoint:** exige o prefixo `\\.\pipe\` seguido de **um único
+  componente** — sem separador (`\` ou `/`), sem componente `.`/`..`, sem ponto
+  ou espaço final e sem controles C0 (abaixo de `0x20`). Isso impede que a normalização de
+  caminho do Windows tire o nome do namespace de pipes (por exemplo
+  `\\.\pipe\..\x` resolveria para `\\.\x`, outro objeto de dispositivo). É um
+  contrato puramente textual: `Create` e `Connect` recusam com `NameInvalid`
+  **antes de qualquer I/O** e sem abrir objeto algum.
 - **Sem acesso remoto:** `PIPE_REJECT_REMOTE_CLIENTS` barra clientes remotos no
   kernel. Isso é estrutural (uma flag do pipe), **não** exercitado pelo teste
   automatizado — o teste é local.

@@ -354,6 +354,45 @@ void PolicyAndNameRejected() {
             "ipc test: broad policy or ambiguous pipe name was accepted.");
 }
 
+// Scenario: names that would normalize out of the \\.\pipe\ namespace, or carry
+// a separator or a "."/".." or trailing-dot/space component, are rejected by both
+// Create and Connect BEFORE any I/O. Only fictitious names with the pipe prefix
+// are used; none is ever opened (validation throws first).
+void NamespaceEscapeNamesRejected() {
+    const wchar_t* const names[] = {
+        L"\\\\.\\pipe\\..\\ms-namespace-probe",
+        L"\\\\.\\pipe\\../ms-namespace-probe",
+        L"\\\\.\\pipe\\..",
+        L"\\\\.\\pipe\\.",
+        L"\\\\.\\pipe\\seat\\child",
+        L"\\\\.\\pipe\\seat/child",
+        L"\\\\.\\pipe\\trailing.",
+        L"\\\\.\\pipe\\trailing ",
+    };
+    for (const wchar_t* const raw : names) {
+        const std::wstring name = raw;
+        bool create_rejected = false;
+        try {
+            auto server = AuthenticatedPipeServer::Create(name);
+            (void)server;
+        } catch (const PipeError& error) {
+            create_rejected = error.Reason() == PipeFailure::NameInvalid;
+        }
+        bool connect_rejected = false;
+        try {
+            auto client = AuthenticatedPipeClient::Connect(name);
+            (void)client;
+        } catch (const PipeError& error) {
+            connect_rejected = error.Reason() == PipeFailure::NameInvalid;
+        }
+        Require(create_rejected && connect_rejected,
+                "ipc test: a namespace-escaping or multi-component pipe name was not rejected before I/O.");
+    }
+    // A legitimate single-component name still validates and opens.
+    auto server = AuthenticatedPipeServer::Create(MakeName(30));
+    (void)server;
+}
+
 // Reject an existing thread context without erasing, replacing or modifying
 // it: the very same token instance (TokenId) must remain, unmodified
 // (ModifiedId). Both are same-user here, so mere presence would prove nothing.
@@ -724,6 +763,7 @@ int wmain(int argc, wchar_t** argv) {
         ArgumentBoundsEnforced();
         InfiniteDeadlineRejected();
         PolicyAndNameRejected();
+        NamespaceEscapeNamesRejected();
         ExistingImpersonationPreserved();
         Require(!ThreadIsImpersonating(), "ipc test: the own-thread fixture was not restored.");
         AcceptCancelled();

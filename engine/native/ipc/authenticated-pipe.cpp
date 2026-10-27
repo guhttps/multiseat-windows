@@ -347,6 +347,18 @@ void ValidateName(const std::wstring& name) {
         name.find(L'\0') != std::wstring::npos) {
         throw PipeError(PipeFailure::NameInvalid);
     }
+    // Require exactly one path component after the prefix so the name cannot
+    // normalize out of the \\.\pipe\ device namespace. A separator or a "."/".."
+    // segment (e.g. "\\.\pipe\..\x" -> "\\.\x") would resolve to a different
+    // device object; a trailing dot or space is also altered by Windows path
+    // normalization. This is a pure text contract: it opens nothing.
+    const std::wstring component = name.substr(prefix.size());
+    if (component == L"." || component == L"..") throw PipeError(PipeFailure::NameInvalid);
+    for (const wchar_t c : component) {
+        if (c == L'\\' || c == L'/' || c < 0x20) throw PipeError(PipeFailure::NameInvalid);
+    }
+    const wchar_t last = component.back();
+    if (last == L'.' || last == L' ') throw PipeError(PipeFailure::NameInvalid);
 }
 
 void ValidateLimits(const PipeLimits& limits) {
