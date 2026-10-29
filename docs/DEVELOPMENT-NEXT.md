@@ -1,6 +1,6 @@
 # Continuidade do desenvolvimento
 
-Atualizado em 2026-10-27. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
+Atualizado em 2026-10-29. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
 
 ## Objetivo
 
@@ -17,6 +17,8 @@ Produto multiseat nativo para Windows, com experiência de configuração compar
 - Painel Windows para planejar duas estações publicado em [v0.1.0-experimental.1](https://github.com/guhttps/multiseat-windows/releases/tag/v0.1.0-experimental.1), com instalador por usuário e ZIP. Compilação limpa, instalação/desinstalação, hashes e downloads anônimos verificados. Painel instalado no ambiente alvo e inicialização validada. Isso não aprova um motor multiseat.
 
 ## Retomar sem repetir trabalho
+
+O bloqueio imediato e a preparação atual estão no [laboratório 018](lab/018-native-client-service-verification.md): o cliente real encerrou com código 32 ao conferir o processo servidor, antes da negociação. Executar a auditoria corrigida da recuperação anterior e uma única rodada diagnóstica protegida; depois corrigir a causa medida, preservando identidade, sincronização e prazo. A nova revisão local já substituiu o evento por um handle do processo autenticado e passou em 16 cenários com morte real, desconexão, revogação e prazo. O próximo incremento deve ligar esse fluxo à autorização real do serviço e ao provedor, preservando as recusas e o encerramento verificado. O vínculo positivo com o serviço continua pendente; não tratar os testes entre processos próprios como integração de produção nem confundir callbacks de outra revisão com execução desta candidata.
 
 O resultado mais recente está no [laboratório 017](lab/017-native-input-integration.md): a candidata isolada de filas UMDF carregou e concluiu leituras, cancelamentos e duplicação de handles na VM, com restauração e ausência dos recursos próprios verificadas. As recusas anteriores foram preservadas; a correção manteve a consulta de sessão no contexto autorizado da requisição, sem ampliar ACLs. GetClientMonitorData foi integrado ao estado vivo da negociação e passou nos testes locais, ainda sem chamada conferida no serviço real. O próximo trabalho é ligar o backend ao identificador de sessão realmente atribuído pelo Windows e concluir dados do cliente, licenciamento e admissão. Preserve a distinção entre a candidata de filas em sessão de serviço e o módulo nativo que exige outra sessão; ainda não houve entrada física, consumidor em kernel/RIM ou frames. Priorize o segundo terminal operando um aplicativo externo. Não ampliar testes auxiliares sem uma hipótese ligada a esse bloqueio, nem contar compilação e fixtures como postos funcionando.
 
