@@ -1,10 +1,10 @@
 # Laboratório 018: identidade do serviço e dados do cliente nativo
 
-Atualizado em 2026-10-29. **Motor incompleto; segundo terminal nativo ainda não demonstrado.**
+Atualizado em 2026-10-30. **Motor incompleto; segundo terminal nativo ainda não demonstrado.**
 
 ## Problema observado
 
-A rodada mais recente com o serviço real do Windows recebeu a solicitação local e validou a identidade do cliente, mas o cliente encerrou com código 32 ao conferir o processo servidor. A falha ocorreu antes da negociação de capacidades, de `OnConnected`, de `OnReady` e de `GetClientData` nessa rodada. Os resultados anteriores desses callbacks continuam sendo provas de outras revisões.
+A rodada que motivou o diagnóstico com o serviço real do Windows recebeu a solicitação local e validou a identidade do cliente, mas o cliente encerrou com código 32 ao conferir o processo servidor. A falha ocorreu antes da negociação de capacidades, de `OnConnected`, de `OnReady` e de `GetClientData` nessa rodada. Os resultados anteriores desses callbacks continuam sendo provas de outras revisões.
 
 O código 32 agrupava quatro verificações: abertura do processo servidor com direitos de consulta e sincronização, obtenção do diretório do sistema, consulta do executável e comparação com o executável esperado. O código de saída sozinho não identifica qual delas falhou. Não atribuir essa falha à geometria nem presumir acesso negado sem a medição específica.
 
@@ -22,7 +22,7 @@ Os hashes dos 14 arquivos de fonte e dos quatro binários da entrega foram confe
 
 A rodada protegida executou após confirmação real do UAC. O registro foi vinculado ao processo lançado e identificou `OpenProcess` como a primeira falha: erro 5, acesso negado. As consultas separadas também receberam erro 5, tanto para consulta limitada quanto para sincronização. Portanto, não é uma negação exclusiva de sincronização. O PID do servidor do pipe coincidiu com o processo informado pelo gerenciador de serviços para o serviço esperado.
 
-O experimento preservou a recusa de conexão e encerrou com código 32, como pretendido para medir a causa. A restauração obrigatória e a auditoria independente posterior passaram: arquivos próprios ausentes, permissões originais restauradas e configurações de serviço e conexão preservadas. Isso aprova a coleta e a recuperação; o vínculo do cliente com o processo do serviço ainda precisa ser corrigido.
+O experimento preservou a recusa de conexão e encerrou com código 32, como pretendido para medir a causa. A restauração obrigatória e a auditoria independente posterior passaram: arquivos próprios ausentes, permissões originais restauradas e configurações de serviço e conexão preservadas. Esse resultado aprovou a coleta e a recuperação. A correção do vínculo com o processo do serviço foi validada na rodada descrita adiante.
 
 ## Proteção da execução administrativa
 
@@ -48,9 +48,15 @@ Uma nova revisão substituiu esse evento por um handle do processo efetivamente 
 
 Essa revisão também corrigiu a ordem da conferência do token: o token próprio é aberto antes da impersonação em nível de identificação; o token do cliente é obtido em seguida, a impersonação termina imediatamente e a comparação de usuário usa os dois tokens já abertos. Um diagnóstico separado confirmou o erro anterior, sem ampliar o nível de impersonação ou retirar a comparação de usuário. A revisão anterior e seus resultados parciais foram preservados.
 
-Esses 16 cenários validam o fluxo de fatos entre processos próprios. Sua ligação à autorização real do serviço e ao consumidor do provedor continua pendente. A validação do handle do serviço foi concluída na revisão descrita acima; ela ainda não promove o fluxo completo de fatos a integração de produção ou a segundo terminal.
+Esses 16 cenários validaram o fluxo entre processos próprios. A integração seguinte ligou os fatos à autorização real do serviço: sessão esperada da conta autenticada, PID e instante de criação do processo, identidade do cliente do pipe, transporte conectado, autorização de uso único, contexto do serviço, encerramento e prazo. A comparação do token continua usando a conta autorizada do cliente, e não a conta do serviço.
 
-O próximo incremento deve integrar os fatos medidos pelo próprio cliente ao canal que já negocia com o serviço real, combinando a verificação do peer com a autorização existente do serviço e o prazo. Também deve qualificar o encerramento após a negociação quando o serviço morre e outro processo mantém o pipe aberto. Os dados do provedor devem continuar recusados enquanto sua configuração real estiver ausente.
+A geometria e os fatos usam o mesmo canal e o mesmo identificador de negociação, com uma geração nova. O próprio cliente mede teclado, fuso e presença de mouse. O serviço mantém esses dados em um leitor que revalida a conexão e encerra as leituras antes de liberar o estado. Os registros contêm somente categorias e validade, sem valores de fuso, layout, nomes de conta ou identificadores de autorização.
+
+A espera após a negociação agora compartilha a mesma implementação no cliente real e no cliente de teste. Ela observa o processo real do serviço além do evento de leitura e cancela e drena a operação pendente se o processo morrer ou o prazo vencer. Dezessete cenários passaram, incluindo morte com o pipe retido por outro processo, término abrupto, identificador ou geração incorretos, revogação que limpa os dados, prazo durante leitura e dados inesperados. Os autotestes dos adaptadores passaram; cinco compilações com avisos tratados como erros e análise estática terminaram sem achados. Foram conferidos 22 arquivos de fonte, cinco binários e 54 origens preservadas.
+
+A rodada na VM confirmou a oferta do handle mínimo, o vínculo com o mesmo processo do cliente e a recepção dos fatos pelo serviço real. Os callbacks de conexão concluíram, GetClientData manteve E_NOTIMPL e o cliente encerrou com código zero. A restauração obrigatória e a auditoria independente passaram, com ausência dos arquivos próprios e retorno das permissões e configurações originais. O inicializador verificou 38 arquivos e 33 diretórios, terminou em código zero e preservou os hashes. Isso comprova essa integração na VM; não comprova uma segunda sessão interativa nem o segundo terminal.
+
+O próximo incremento deve integrar a configuração real do provedor e projetar os fatos vivos em GetClientData, preservando as políticas fornecidas pelo Windows. O getter deve continuar recusando quando faltar configuração ou quando o vínculo for invalidado.
 
 O direito de duplicação exigido sobre o processo destinatário foi restrito ao helper próprio e descartável. Ele não é um simples direito de leitura: pode permitir acesso mais amplo ao destinatário, conforme os [direitos de acesso a processos](https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights). O handle do serviço entregue ao cliente continua limitado a consulta e sincronização. A DACL do serviço e os aplicativos externos não receberam essa concessão.
 
@@ -58,4 +64,4 @@ Após identificar e corrigir a falha do cliente sem reduzir essas verificações
 
 ## Critério de avanço
 
-A medição do código 32, a correção do acesso ao processo e as auditorias de recuperação foram concluídas. O próximo resultado necessário é integrar os fatos reais do cliente e a configuração legítima do provedor, mantendo autorização, recusa de dados incompletos e restauração. A conclusão do motor depende do [gate nativo](../architecture/0007-native-engine-gate.md) e da [lista de trabalho restante](../REMAINING-WORK.md), incluindo segunda conta, terminal, aplicativos externos, isolamento, apresentação física, entrada, áudio e recuperação.
+A medição do código 32, a correção do acesso ao processo e as auditorias de recuperação foram concluídas. A recepção dos fatos reais do cliente também foi concluída. O próximo resultado necessário é integrar a configuração verdadeira do provedor e a projeção dos dados, mantendo autorização, recusa de dados incompletos e restauração. A conclusão do motor depende do [gate nativo](../architecture/0007-native-engine-gate.md) e da [lista de trabalho restante](../REMAINING-WORK.md), incluindo segunda conta, terminal, aplicativos externos, isolamento, apresentação física, entrada, áudio e recuperação.
