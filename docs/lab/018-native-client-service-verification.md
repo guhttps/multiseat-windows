@@ -1,6 +1,6 @@
 # Laboratório 018: identidade do serviço e dados do cliente nativo
 
-Atualizado em 2026-10-30. **Motor incompleto; segundo terminal nativo ainda não demonstrado.**
+Atualizado em 2026-11-02. **Motor incompleto; segundo terminal nativo ainda não demonstrado.**
 
 ## Problema observado
 
@@ -56,12 +56,35 @@ A espera após a negociação agora compartilha a mesma implementação no clien
 
 A rodada na VM confirmou a oferta do handle mínimo, o vínculo com o mesmo processo do cliente e a recepção dos fatos pelo serviço real. Os callbacks de conexão concluíram, GetClientData manteve E_NOTIMPL e o cliente encerrou com código zero. A restauração obrigatória e a auditoria independente passaram, com ausência dos arquivos próprios e retorno das permissões e configurações originais. O inicializador verificou 38 arquivos e 33 diretórios, terminou em código zero e preservou os hashes. Isso comprova essa integração na VM; não comprova uma segunda sessão interativa nem o segundo terminal.
 
-O próximo incremento deve integrar a configuração real do provedor e projetar os fatos vivos em GetClientData, preservando as políticas fornecidas pelo Windows. O getter deve continuar recusando quando faltar configuração ou quando o vínculo for invalidado.
+O incremento seguinte integrou a configuração própria do provedor e projetou os fatos vivos em GetClientData, preservando as políticas fornecidas pelo Windows. O getter recusa quando faltar configuração ou quando o vínculo for invalidado. Os resultados estão abaixo.
 
 O direito de duplicação exigido sobre o processo destinatário foi restrito ao helper próprio e descartável. Ele não é um simples direito de leitura: pode permitir acesso mais amplo ao destinatário, conforme os [direitos de acesso a processos](https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights). O handle do serviço entregue ao cliente continua limitado a consulta e sincronização. A DACL do serviço e os aplicativos externos não receberam essa concessão.
 
-Após identificar e corrigir a falha do cliente sem reduzir essas verificações, faltam concluir os dados reais do provedor e demonstrar a cadeia completa de segunda conta, sessão interativa, terminal, display e entrada. O observador atual continua recusando dados incompletos; não fornece credenciais, não conclui licenciamento, não autentica uma segunda conta nem anuncia admissão de uma sessão.
+A correção do acesso ao processo e a projeção de dados são etapas da cadeia de segunda conta, sessão interativa, terminal, display e entrada. Elas não fornecem credenciais, não concluem licenciamento nem demonstram admissão de uma sessão.
+
+## Projeção dos dados e sequência observada em 31/10
+
+A nova candidata lê a configuração da chave própria do listener, conferindo classe, nome e tipo do protocolo. A seleção do tipo é experimental: não representa uma faixa oficialmente atribuída nem garante suporte no Windows cliente. A resposta é construída zerada, preserva as seis políticas recebidas e inclui somente os fatos disponíveis. Em qualquer falha, todos os bytes da saída original permanecem intactos. Presença de mouse não é entrada habilitada; `fMouse` permanece falso enquanto não existir roteamento. Esses campos e as políticas estão descritos em [WTS_CLIENT_DATA](https://learn.microsoft.com/en-us/windows/win32/api/wtsdefs/ns-wtsdefs-wts_client_data).
+
+A autorização composta é revalidada antes de `OnConnected` e da publicação dos dados. Passaram 315 verificações de configuração/projeção, incluindo as 64 combinações das seis políticas, recusa de valores inválidos e alterações durante a leitura. Os 17 cenários entre processos e os autotestes do cliente/DLL também passaram. Seis compilações usaram avisos como erros e análise estática; houve uma exceção explícita e limitada ao aviso C6553 nas declarações do SDK, cuja anotação de `RegOpenKeyExW` marca um parâmetro escalar como opcional. Não foi desabilitada a análise do código do projeto. Foram conferidos 26 arquivos de fonte, seis binários e 77 origens preservadas.
+
+O avaliador de resultados passou em 62 verificações locais. Seu critério exigia entrega de dados, dados de monitores, recusa em `GetUserCredentials` e encerramento. A ordem publicada para [IWRdsProtocolConnection](https://learn.microsoft.com/en-us/windows/win32/api/wtsprotocol/nn-wtsprotocol-iwrdsprotocolconnection) coloca credenciais antes da interface de licenciamento; a execução desta imagem do Windows seguiu outra sequência.
+
+| Chamada observada no serviço real | Resultado |
+|---|---|
+| AcceptConnection | S_OK: continuação da solicitação |
+| GetClientData | S_OK; preparação dos dados registrada e chamada seguinte observada |
+| GetClientMonitorData | S_OK |
+| GetUserCredentials | Não observado nessa rodada |
+| GetLicenseConnection | E_NOTIMPL retornado pelo nosso componente, com ponteiro nulo |
+| Close e fim do trabalhador | Encerramento observado; cliente terminou em código zero |
+
+**O experimento completo permaneceu reprovado**, por receber um método fora da sequência autorizada pelo avaliador. O critério e o resultado originais foram preservados. Uma análise posterior separada vinculou os eventos ao processo real do serviço e confirmou a entrega dos dados, a solicitação da interface de licenciamento e o encerramento. Essa constatação não equivale a licença concedida, segunda conta autenticada ou sessão admitida; também não é uma evidência de rejeição de licença pelo Windows, pois a interface ainda não foi fornecida pelo nosso código.
+
+O console permaneceu saudável. A restauração obrigatória e a auditoria independente passaram: recursos próprios ausentes, permissões originais restauradas e configurações de serviço e conexão preservadas. O inicializador elevado concluiu com código zero e hashes preservados. A aprovação da recuperação não transforma o experimento em aprovado.
+
+O próximo componente é o transporte e o objeto de [IWRdsProtocolLicenseConnection](https://learn.microsoft.com/en-us/windows/win32/api/wtsprotocol/nn-wtsprotocol-iwrdsprotocollicenseconnection), mantendo as decisões reais do serviço. O parser do cliente testado isoladamente não prova essa integração. A interface documenta suporte em Windows Server; a observação experimental na VM cliente não amplia esse suporte. Continuam pendentes autenticação, sessão utilizável, display, entrada e a validação do produto.
 
 ## Critério de avanço
 
-A medição do código 32, a correção do acesso ao processo e as auditorias de recuperação foram concluídas. A recepção dos fatos reais do cliente também foi concluída. O próximo resultado necessário é integrar a configuração verdadeira do provedor e a projeção dos dados, mantendo autorização, recusa de dados incompletos e restauração. A conclusão do motor depende do [gate nativo](../architecture/0007-native-engine-gate.md) e da [lista de trabalho restante](../REMAINING-WORK.md), incluindo segunda conta, terminal, aplicativos externos, isolamento, apresentação física, entrada, áudio e recuperação.
+A correção do acesso ao processo, a recepção dos fatos reais do cliente e a entrega de dados ao serviço foram observadas. O próximo bloqueio é a interface de licenciamento ainda não implementada. Preserve o resultado completo reprovado da rodada de 31/10 e sua recuperação aprovada. A conclusão do motor depende do [gate nativo](../architecture/0007-native-engine-gate.md) e da [lista de trabalho restante](../REMAINING-WORK.md), incluindo segunda conta, terminal, aplicativos externos, isolamento, apresentação física, entrada, áudio e recuperação.
