@@ -87,4 +87,16 @@ O próximo componente é o transporte e o objeto de [IWRdsProtocolLicenseConnect
 
 ## Critério de avanço
 
+### Transporte de mensagens verificado em 03/11
+
+Uma candidata privada separada implementou quadros de tamanho limitado, vinculados a nonce, geração e sequência, sem interpretar uma confirmação de transporte como conclusão do licenciamento. Um quadro inválido, repetido ou de direção incorreta encerra o receptor. O nonce vincula os dados à negociação; não substitui autenticação do processo.
+
+Passaram 203 verificações, incluindo 20 cenários com pipes locais reais. Foram exercitados o modo de leitura por mensagem e por bytes, limite máximo, mensagens truncadas ou excedentes, fragmentação, prazo, revogação e exceção no guard, morte de um processo filho próprio e cancelamento de leitura e escrita pendentes. A operação assíncrona é cancelada e sua conclusão é aguardada antes de liberar evento ou buffer. O guard de autorização usado nessa suíte é uma fixture, sem prova nova de identidade de produção ou de comunicação com o serviço do Windows.
+
+A compilação final usou `/W4 /WX /analyze`, sem achados nem supressões adicionadas. Um aviso anterior de uso excessivo de pilha foi corrigido movendo o buffer de caminho do teste para o heap; a compilação reprovada permanece registrada. Quatro fontes e 103 origens congeladas foram conferidas. Não houve UAC, execução de VM, alteração de serviço, driver, rede ou Parsec nessa etapa.
+
+Esse transporte ainda precisa ser integrado ao parser do cliente, ao canal autenticado e ao objeto solicitado por `GetLicenseConnection`. O parser isolado e os testes de enquadramento não comprovam uma negociação real de licenciamento. Os resultados da rodada anterior continuam inalterados.
+
+### Próxima integração
+
 A correção do acesso ao processo, a recepção dos fatos reais do cliente e a entrega de dados ao serviço foram observadas. O próximo bloqueio é a interface de licenciamento ainda não implementada. Preserve o resultado completo reprovado da rodada de 31/10 e sua recuperação aprovada. A conclusão do motor depende do [gate nativo](../architecture/0007-native-engine-gate.md) e da [lista de trabalho restante](../REMAINING-WORK.md), incluindo segunda conta, terminal, aplicativos externos, isolamento, apresentação física, entrada, áudio e recuperação.
