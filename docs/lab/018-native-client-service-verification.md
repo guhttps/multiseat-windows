@@ -109,8 +109,46 @@ A entrada do cliente descartável da VM foi adaptada em candidata separada. Ela 
 
 Essa entrada compilou com `/W4 /WX /analyze`, passou em 11 verificações de contexto/configuração e no autoteste de política. Fora do ambiente permitido, retornou código 10 antes de alterar ACL ou abrir o canal. Foram conferidos cinco arquivos da integração, quatro da entrada adaptada, duas imagens desta última e 707 dependências; as fontes anteriores permaneceram intactas. A análise estática cobre o código próprio, com cabeçalhos externos excluídos. Os testes do parser usaram nomes fictícios e não publicaram PDUs, identificadores ou caminhos locais.
 
-**Limite atual:** o caminho entre processos próprios foi executado; a entrada adaptada foi compilada e validada localmente, mas ainda não executada na VM. O objeto do servidor solicitado por `GetLicenseConnection`, sua autoridade de serviço/permit e a negociação real continuam pendentes. Não houve UAC, mudança de serviço, driver ou rede nesta etapa. O motor não oferece dois terminais nativos utilizáveis.
+**Limite daquela etapa:** o caminho entre processos próprios foi executado; a entrada adaptada foi compilada e validada localmente, mas ainda não executada na VM. O objeto do servidor solicitado por `GetLicenseConnection`, sua autoridade de serviço/permit e a negociação real continuam pendentes. Não houve UAC, mudança de serviço, driver ou rede nesta etapa. O motor não oferece dois terminais nativos utilizáveis.
 
 ### Próxima integração
 
-A correção do acesso ao processo, a recepção dos fatos reais do cliente e a entrega de dados ao serviço foram observadas. O próximo bloqueio é a interface de licenciamento ainda não implementada. Preserve o resultado completo reprovado da rodada de 31/10 e sua recuperação aprovada. A conclusão do motor depende do [gate nativo](../architecture/0007-native-engine-gate.md) e da [lista de trabalho restante](../REMAINING-WORK.md), incluindo segunda conta, terminal, aplicativos externos, isolamento, apresentação física, entrada, áudio e recuperação.
+A correção do acesso ao processo, a recepção dos fatos reais do cliente e a entrega de dados ao serviço foram observadas. A interface de licenciamento recebeu a implementação descrita abaixo; sua qualificação local não substitui a negociação com o serviço real. Preserve o resultado completo reprovado da rodada de 31/10 e sua recuperação aprovada. A conclusão do motor depende do [gate nativo](../architecture/0007-native-engine-gate.md) e da [lista de trabalho restante](../REMAINING-WORK.md), incluindo segunda conta, terminal, aplicativos externos, isolamento, apresentação física, entrada, áudio e recuperação.
+
+### Objeto de licenciamento implementado
+
+A nova candidata implementa `IWRdsProtocolLicenseConnection` e liga seu objeto ao getter do provedor. A referência COM entregue pertence ao chamador; referências adicionais preservam a identidade de `IUnknown`. O endpoint mantém a autoridade recebida, e o encerramento cancela e drena as operações antes de liberar os contextos emprestados. Uma referência retida depois do encerramento recusa novas operações.
+
+`SendClientLicense` encaminha o PDU ao parser e conserva sua resposta para `RequestClientLicense`. Buffers insuficientes informam o tamanho necessário sem publicar uma resposta parcial; a repetição de uma consulta não reenvia o PDU anterior. Uma confirmação sem resposta não é convertida em licença. `ProtocolComplete` registra exclusivamente o valor informado pelo chamador: a documentação define esse método como notificação do resultado pelo serviço. Nenhum resultado local do parser produz essa notificação. Fonte: [contrato de ProtocolComplete](https://learn.microsoft.com/en-us/windows/win32/api/wtsprotocol/nf-wtsprotocol-iwrdsprotocollicenseconnection-protocolcomplete).
+
+Passaram **289 verificações em 23 cenários com processos próprios**, incluindo sete cenários adicionais do objeto COM, além dos autotestes do provedor adaptado. Foram conferidos identidade, referências, consultas de capacidades, buffers insuficientes, resposta do parser, revogação e cancelamento durante leitura pendente. Notificações feitas pelo próprio teste, inclusive com valor 1, são fixtures e não evidência de concessão pelo Windows.
+
+O provedor destinado à VM foi compilado separadamente com runtime C++ estático, mantendo as fontes qualificadas. A análise de importações confirmou que essa DLL não exige MSVCP/VCRUNTIME dinâmicos; seus autotestes passaram. As dependências do parser e os redistribuíveis necessários ao cliente foram preparados em uma pasta privada, com hashes conferidos. Código próprio passou com avisos como erros e análise estática; cabeçalhos externos continuam excluídos dessa análise.
+
+A qualificação local não demonstra uma segunda conta, concessão de licença, sessão gráfica, entrada física ou segundo terminal. Esses resultados dependem da execução real e das etapas seguintes do gate.
+
+### Objeto e notificação observados no serviço real
+
+A primeira rodada com esse objeto parou antes de OnReady: o cliente limitado recusou a construção do novo canal. A VM foi restaurada e auditada. Uma candidata separada retirou uma reabertura redundante por PID, preservando o PID/sessão atestados pelo pipe, o handle real do processo, sua criação, a autoridade anterior e o SCM. A consulta antiga exige PROCESS_QUERY_INFORMATION; o handoff fornece deliberadamente direitos menores. Na rodada seguinte, o diagnóstico confirmou acesso negado nessa consulta, enquanto o canal com o handle mínimo continuou. Nenhuma DACL ou privilégio do serviço foi ampliado. Fonte: [requisito de acesso de ProcessIdToSessionId](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-processidtosessionid).
+
+Essa correção passou novamente nas 289 verificações/23 cenários afetados, nas 11 verificações de contexto e nos testes de política e recusa no host. A segunda rodada usou o mesmo provedor estático e somente o cliente corrigido.
+
+Na coleta com identidade completa da instância real do serviço, a sequência observada foi:
+
+| Operação | Resultado observado |
+|---|---|
+| GetLicenseConnection | S_OK, objeto próprio retornado |
+| RequestLicensingCapabilities | S_OK, estrutura de 64 bytes |
+| SendClientLicense | S_OK, mensagem de 16 bytes consumida pelo parser; confirmação sem PDU de resposta |
+| ProtocolComplete | O serviço informou valor 1; nenhuma chamada foi sintetizada pelo parser |
+| AuthenticateClientToSession | Nosso componente retornou E_NOTIMPL |
+| NotifySessionId | Nosso componente retornou ERROR_NOT_READY |
+| Close e espera de fechamento | Observados com S_OK |
+
+O cliente terminou na categoria esperada de encerramento pelo peer, sem processo remanescente. Console e processos centrais da sessão permaneceram iguais na observação. A restauração pelo checkpoint e a auditoria independente passaram, incluindo ausência do cache/dependências e preservação de ACL e configuração do serviço.
+
+**O teste completo continua reprovado:** os callbacks de sessão ultrapassaram seu limite de escopo, e o critério exigia um PDU de resposta que esse caminho não produziu. A sequência foi analisada separadamente, sem editar o veredito original nem repetir a rodada. A chamada real de ProtocolComplete(1) comprova a notificação do serviço nesse ensaio; não comprova validade de CAL, autenticação de outra conta, desktop gráfico ou terminal físico.
+
+### Próximo bloqueio após essa rodada
+
+Tratar NotifySessionId com um registro limitado e vivo da sessão realmente informada pelo Windows, preservando o tempo de vida do identificador e a semântica do handle recebido. A notificação deve retornar imediatamente; consultas externas precisam ocorrer fora do callback. AuthenticateClientToSession trata reconexão: a documentação diz que um erro nessa chamada permite continuar a sequência, portanto sua recusa não deve ser confundida com a causa do encerramento posterior. Em seguida, qualificar autenticação real de outra conta e a ligação da sessão ao backend de entrada/display. Fontes: [NotifySessionId](https://learn.microsoft.com/en-us/windows/win32/api/wtsprotocol/nf-wtsprotocol-iwrdsprotocolconnection-notifysessionid), [AuthenticateClientToSession](https://learn.microsoft.com/en-us/windows/win32/api/wtsprotocol/nf-wtsprotocol-iwrdsprotocolconnection-authenticateclienttosession).
