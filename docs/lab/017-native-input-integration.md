@@ -34,7 +34,7 @@ Essa é uma prova de ciclo de vida e I/O de uma candidata isolada, com cliente p
 
 ## Bloqueio e próximo marco
 
-O provedor do [laboratório 014](014-native-local-admission.md) ainda recusa a conexão por falta dos backends. Faltam o preenchimento completo e verdadeiro dos dados do cliente, o protocolo de licenciamento aplicável, a autenticação da segunda conta, a ligação à sessão realmente atribuída pelo Windows e a integração de entrada e display. A candidata de fila não resolve essas dependências por si só.
+Atualização de 04/11: o [laboratório 018](018-native-client-service-verification.md) já registra dados do cliente/monitores entregues ao serviço, notificação de licença e NotifySessionId aceito pelo provedor. Nosso GetInputHandles leu a atribuição recebida sob autoridade viva, mas continua retornando E_NOTIMPL, sem dispositivos. A próxima integração é ligar um backend real a essa sessão e qualificar os handles e o consumidor efetivo do Windows. A candidata de fila isolada descrita acima não resolve essa ligação por si só. Login da segunda conta, entrada física e display continuam sem comprovação.
 
 O próximo marco funcional é uma segunda sessão nativa aceita, com um aplicativo externo visível e controlável independentemente do console original, seguida de recuperação verificada. Compilar componentes, aprovar políticas ou armazenar um pacote não satisfaz esse marco. Não há previsão confiável de conclusão antes dessa prova.
 
