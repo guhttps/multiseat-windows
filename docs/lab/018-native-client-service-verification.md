@@ -95,7 +95,21 @@ Passaram 203 verificações, incluindo 20 cenários com pipes locais reais. Fora
 
 A compilação final usou `/W4 /WX /analyze`, sem achados nem supressões adicionadas. Um aviso anterior de uso excessivo de pilha foi corrigido movendo o buffer de caminho do teste para o heap; a compilação reprovada permanece registrada. Quatro fontes e 103 origens congeladas foram conferidas. Não houve UAC, execução de VM, alteração de serviço, driver, rede ou Parsec nessa etapa.
 
-Esse transporte ainda precisa ser integrado ao parser do cliente, ao canal autenticado e ao objeto solicitado por `GetLicenseConnection`. O parser isolado e os testes de enquadramento não comprovam uma negociação real de licenciamento. Os resultados da rodada anterior continuam inalterados.
+Essa primeira etapa limitou-se ao enquadramento e transporte. O parser isolado e esses testes não comprovam uma negociação real de licenciamento. Os resultados da rodada anterior continuam inalterados.
+
+### Parser e identidade ligados em 03/11
+
+O parser raw do cliente passou a receber PDUs pelo transporte local e devolver a resposta pelo mesmo canal. O canal conserva a autorização recebida e acrescenta conferências do PID/sessão atestados pelo pipe, handle real do processo e instante de criação. A identidade e o prazo são revalidados antes de invocar o parser e antes de publicar a resposta. Uma confirmação de transporte não equivale a `ProtocolComplete` nem a licença concedida.
+
+A suíte passou em **136 verificações e 16 cenários entre processos próprios reais**. Além do PID, criação e imagem esperados, o laboratório verifica o token primário do processo, o mesmo logon e o contexto conectado por impersonação. A reversão é conferida, sem deixar token na thread. Essa política de mesmo logon pertence ao laboratório; não substitui a política do serviço real para o cliente convidado.
+
+O caminho positivo devolveu o `NEW_LICENSE_REQUEST` gerado pelo parser a partir de uma solicitação e certificado efêmeros do próprio teste, sem servidor Windows conectado. Passaram também recusa do parser, nonce/geração/direção incorretos, repetição, mensagem fora de fase, PID/criação/imagem incorretos, cliente anônimo, encerramento concorrente, revogação, prazo e morte do processo autenticado. Nesse último cenário, um processo auxiliar conservou o handle do pipe: o endpoint recusou a continuidade e cancelou/drenou a leitura mesmo com o transporte ainda aberto. Ao final, não restaram processos do teste ou operações pendentes.
+
+A entrada do cliente descartável da VM foi adaptada em candidata separada. Ela preserva as verificações iniciais de ambiente, arquivos protegidos, token, hash da imagem, lançamento e handle do serviço. O trabalhador do parser continua sob o vínculo real de processo/pipe e a consulta ao SCM. A ligação usa o nonce da negociação autenticada anterior e uma geração não nula derivada dele; esse vínculo não concede autoridade. Requer um diretório privado de cache previamente preparado pelo coordenador da VM. Os resultados do trabalhador são categorias de encerramento, sem afirmar sucesso de licenciamento.
+
+Essa entrada compilou com `/W4 /WX /analyze`, passou em 11 verificações de contexto/configuração e no autoteste de política. Fora do ambiente permitido, retornou código 10 antes de alterar ACL ou abrir o canal. Foram conferidos cinco arquivos da integração, quatro da entrada adaptada, duas imagens desta última e 707 dependências; as fontes anteriores permaneceram intactas. A análise estática cobre o código próprio, com cabeçalhos externos excluídos. Os testes do parser usaram nomes fictícios e não publicaram PDUs, identificadores ou caminhos locais.
+
+**Limite atual:** o caminho entre processos próprios foi executado; a entrada adaptada foi compilada e validada localmente, mas ainda não executada na VM. O objeto do servidor solicitado por `GetLicenseConnection`, sua autoridade de serviço/permit e a negociação real continuam pendentes. Não houve UAC, mudança de serviço, driver ou rede nesta etapa. O motor não oferece dois terminais nativos utilizáveis.
 
 ### Próxima integração
 
