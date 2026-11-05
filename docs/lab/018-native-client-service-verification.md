@@ -1,6 +1,8 @@
 # Laboratório 018: identidade do serviço e dados do cliente nativo
 
-Atualizado em 2026-11-02. **Motor incompleto; segundo terminal nativo ainda não demonstrado.**
+Atualizado em 2026-11-04. **Motor incompleto; segundo terminal nativo ainda não demonstrado.**
+
+A candidata posterior de canais de entrada e seus testes locais estão no [laboratório 019](019-native-input-backend.md). Ela não altera os resultados históricos registrados aqui.
 
 ## Problema observado
 
