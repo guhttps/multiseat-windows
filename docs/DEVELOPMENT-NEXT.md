@@ -8,6 +8,8 @@ Produto multiseat nativo para Windows, com experiência de configuração compar
 
 ## Entrega em andamento
 
+- Próximo incremento do motor: o serviço real já recebeu os canais de GetInputHandles e o encerramento dos arquivos foi observado na via de recusa; falta consumo pelo kernel. A próxima chamada bloqueada é GetHardwareId, da integração de display. Tratar o ensaio completo reprovado e a análise separada da observação como resultados distintos. Verificar identidade/carregamento do display e sua ligação à sessão antes de afirmar entrada ou vídeo funcionais. Veja o [laboratório 019](lab/019-native-input-backend.md).
+
 - Repositório público saneado publicado, preservando histórico e resultados anteriores como privados.
 - Correções de Raw Input, conexão/cleanup do experimento C#, validação do pacote e códigos de saída.
 - CMake/CTest integrados, verificações de privacidade e segredos em CI.

@@ -49,3 +49,5 @@ Na pesquisa em VM, o provedor já concluiu um ciclo de recusa controlada: OnConn
 O [roteiro de comparação em VM](lab/007-clean-windows-comparison.md) preserva o laboratório anterior. A VM não é a solução escolhida para League of Legends. Não é necessário repetir os testes anteriores para compilar ou estudar esta base.
 
 Veja [DEVELOPMENT-NEXT.md](DEVELOPMENT-NEXT.md) para retomar o trabalho a partir da última entrega. Mantenha relatórios e informações do seu computador em `docs/lab/results/`, fora do Git; consulte [SECURITY.md](../SECURITY.md) antes de publicar evidências.
+
+A candidata mais recente de canais para entrada nativa, seus testes locais e os critérios de execução estão no [laboratório 019](lab/019-native-input-backend.md). Dois terminais nativos utilizáveis continuam pendentes.
