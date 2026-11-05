@@ -103,3 +103,6 @@ exit 0
     [Environment]::SetEnvironmentVariable('NoDefaultCurrentDirectoryInExePath', $previousDirectorySearch, 'Process')
 }
 Write-Output 'PASS: SDK command discovery, private child PATH, unchanged search guard, environment restoration and foreign-directory rejection.'
+# The negative child intentionally exits 7. The Actions PowerShell wrapper
+# propagates LASTEXITCODE, so a successful suite must explicitly return zero.
+exit 0
