@@ -28,7 +28,11 @@ Mantenha as verificações obrigatórias, secret scanning, push protection e a p
 
 O workflow CodeQL analisa C++ e C# em um runner temporário do GitHub, nos pushes, PRs e semanalmente. Ele envia somente os resultados de análise para Code Scanning, sem publicar bancos ou relatórios do computador pessoal. O resultado deve ser revisado na aba **Security**; zero alertas não prova ausência de vulnerabilidades.
 
-O Dependabot propõe semanalmente atualizações das ações do GitHub fixadas por commit. Essas atualizações precisam passar pelos checks e pela revisão antes da integração; não há merge automático. As ferramentas baixadas manualmente, como Gitleaks e Inno Setup, continuam exigindo revisão de versão, procedência e checksums.
+O Dependabot propõe semanalmente atualizações das ações do GitHub fixadas por commit. Essas atualizações precisam passar pelos checks e pela revisão antes da integração; não há merge automático. O repositório também exige SHA completo para ações remotas (`sha_pinning_required`), sem dispensar a revisão de procedência e permissões da ação.
+
+As ferramentas e bibliotecas baixadas manualmente, como Gitleaks, Inno Setup, FreeRDP e OpenSSL, continuam exigindo revisão de versão, advisories, procedência e checksums. Zero alertas do Dependabot não cobre automaticamente esse SDK. Uma atualização que mencione correções de segurança precisa de triagem, atualização dos pins quando aplicável e reconstrução/testes; não altere os binários congelados das evidências anteriores.
+
+A [revisão de segurança de 2026-11-05](docs/SECURITY-REVIEW-20261105.md) registra o escopo verificado, os resultados e as pendências, incluindo a atualização do FreeRDP de laboratório. Ela não certifica o motor para uso diário nem garante ausência absoluta de divulgação.
 
 ## Relatar uma vulnerabilidade
 
