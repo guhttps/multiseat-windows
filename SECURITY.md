@@ -34,6 +34,8 @@ As ferramentas e bibliotecas baixadas manualmente, como Gitleaks, Inno Setup, Fr
 
 A [revisão de segurança de 2026-11-05](docs/SECURITY-REVIEW-20261105.md) registra o escopo verificado, os resultados e as pendências, incluindo a atualização do FreeRDP de laboratório. Ela não certifica o motor para uso diário nem garante ausência absoluta de divulgação.
 
+A [atualização do SDK para FreeRDP 3.33.0](docs/FREERDP-UPDATE-20261105.md) registra a continuação dessa pendência, a reconstrução e os testes offline do cliente. O acompanhamento dos avisos e a qualificação de cada integração/ensaio permanecem necessários; os binários congelados de evidências anteriores não são atualizados automaticamente.
+
 ## Relatar uma vulnerabilidade
 
 Use a opção privada **Security → Report a vulnerability** quando estiver habilitada no GitHub. Não publique uma credencial ou informação pessoal para demonstrar o problema. Se a opção privada não estiver disponível, abra uma Issue pedindo um canal privado sem incluir o conteúdo sensível.
