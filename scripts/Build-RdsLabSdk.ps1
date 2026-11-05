@@ -94,7 +94,8 @@ function Resolve-SdkApplication {
 }
 
 function Invoke-SdkCommand {
-    param([string]$Executable, [string[]]$Arguments, [string]$Directory, [string]$LogName, [switch]$ReadOutput)
+    param([string]$Executable, [string[]]$Arguments, [string]$Directory, [string]$LogName,
+        [switch]$ReadOutput, [string]$PrivateToolDirectory)
     $script:lastCommandStage = $LogName
     $script:lastCommandExitCode = $null
     $script:lastCommandCategory = 'command_not_completed'
@@ -102,9 +103,25 @@ function Invoke-SdkCommand {
     $script:lastCommandRefLinesValid = $null
     Assert-SdkPath $Directory $script:sdkRoot | Out-Null
     $log = Assert-SdkPath (Join-Path $script:logRoot ($LogName + '.private.log')) $script:sdkRoot
+    $privateTools = $null
+    if ($PrivateToolDirectory) {
+        # A PATH entry must be one explicit owned directory, never ".", an
+        # injected list, or a redirected location. Keep Windows' restriction on
+        # implicit current-directory executable search unchanged.
+        if (-not [IO.Path]::IsPathRooted($PrivateToolDirectory) -or $PrivateToolDirectory -match '[;\r\n]') {
+            throw 'Invalid private tool directory.'
+        }
+        $privateTools = Assert-SdkPath $PrivateToolDirectory $script:sdkRoot
+        if (-not (Test-Path -LiteralPath $privateTools -PathType Container)) { throw 'Private tool directory is missing.' }
+    }
     Push-Location -LiteralPath $Directory
     $previousPreference = $ErrorActionPreference
+    $previousPath = $env:PATH
     try {
+        if ($privateTools) {
+            $env:PATH = $privateTools
+            if ($previousPath) { $env:PATH += [IO.Path]::PathSeparator + $previousPath }
+        }
         # In Windows PowerShell, stderr warnings can otherwise become terminating
         # NativeCommandError even when the native process exits successfully.
         $ErrorActionPreference = 'Continue'
@@ -115,6 +132,7 @@ function Invoke-SdkCommand {
         $nativeExit = $global:LASTEXITCODE
         $script:lastCommandExitCode = $nativeExit
     } finally {
+        $env:PATH = $previousPath
         $ErrorActionPreference = $previousPreference
         Pop-Location
     }
@@ -196,8 +214,8 @@ $pins = @(
         tag_object = 'd0ca66a1abe52545f14eca635c648932fcde5615'; commit = '45e844fa2a14ec92d146bd8f5778ac130b6625fb'; directory = 'openssl-source' },
     [PSCustomObject][ordered]@{ name = 'zlib'; url = 'https://github.com/madler/zlib.git'; tag = 'v1.3.2'
         tag_object = '216c70c020aa53f0c40920d155f808b6b59c9acb'; commit = 'da607da739fa6047df13e66a2af6b8bec7c2a498'; directory = 'zlib-source' },
-    [PSCustomObject][ordered]@{ name = 'FreeRDP'; url = 'https://github.com/FreeRDP/FreeRDP.git'; tag = '3.32.2'
-        tag_object = 'c7e6848d15e613fda3d3ee7ebca36146088802a2'; commit = '97eff6ddfbbfaa8e42a126d362686bd001ff8bdc'; directory = 'freerdp-source' }
+    [PSCustomObject][ordered]@{ name = 'FreeRDP'; url = 'https://github.com/FreeRDP/FreeRDP.git'; tag = '3.33.0'
+        tag_object = 'b4cf84109c0025b9e5c07925ac9d5775cb6d46d1'; commit = '5a10d7b6b79a2fbc62e8eba77085cd356dc303a6'; directory = 'freerdp-source' }
 )
 $freerdpFlags = @(
     '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL', '-DBUILD_SHARED_LIBS=ON', '-DBUILD_TESTING=OFF',
@@ -211,7 +229,7 @@ $freerdpFlags = @(
     '-DWITH_DEBUG_NLA=OFF', '-DWITH_DEBUG_CERTIFICATE=OFF', '-DWITH_DEBUG_KBD=OFF'
 )
 $recipe = [ordered]@{ version = 1; sources = $pins; freerdp_flags = $freerdpFlags
-    perl = 'nmake CCTYPE=MSVC143 INST_TOP=<sdk>/perl-install USE_NO_REGISTRY=define; installbare'
+    perl = 'nmake CCTYPE=MSVC143 INST_TOP=<sdk>/perl-install USE_NO_REGISTRY=define; installbare; prepend owned perl-source to child PATH only'
     openssl = 'VC-WIN64A shared no-asm no-tests no-docs; out-of-tree; --prefix=<sdk>/install --openssldir=<sdk>/install/ssl --libdir=lib; build_sw; install_sw'
     zlib = 'Ninja Release; ZLIB_BUILD_TESTING=OFF; ZLIB_BUILD_SHARED=OFF; ZLIB_BUILD_STATIC=ON' }
 $recipeBytes = [Text.Encoding]::UTF8.GetBytes(($recipe | ConvertTo-Json -Depth 8 -Compress))
@@ -328,8 +346,8 @@ try {
     $perlPrefix = Join-Path $script:sdkRoot 'perl-install'
     Assert-SdkSource $pins[0] $perlSource
     $perlMake = @('/NOLOGO', 'CCTYPE=MSVC143', ('INST_TOP=' + $perlPrefix), 'USE_NO_REGISTRY=define')
-    Invoke-SdkCommand $nmake $perlMake (Join-Path $perlSource 'win32') 'perl-build'
-    Invoke-SdkCommand $nmake ($perlMake + @('installbare')) (Join-Path $perlSource 'win32') 'perl-install'
+    Invoke-SdkCommand $nmake $perlMake (Join-Path $perlSource 'win32') 'perl-build' -PrivateToolDirectory $perlSource
+    Invoke-SdkCommand $nmake ($perlMake + @('installbare')) (Join-Path $perlSource 'win32') 'perl-install' -PrivateToolDirectory $perlSource
     $perl = Join-Path $perlPrefix 'bin/perl.exe'
     if (-not (Test-Path -LiteralPath $perl -PathType Leaf)) { throw 'Local Perl was not installed.' }
     $env:PATH = (Join-Path $perlPrefix 'bin') + ';' + (Join-Path $prefix 'bin') + ';' + $env:PATH

@@ -38,7 +38,7 @@ Este checklist organiza a conclusão do produto. O resultado detalhado e atualiz
 
 - [ ] Manter código, documentação, releases e perfil do GitHub coerentes com os resultados reais; aprovar merges somente com as verificações obrigatórias concluídas.
 - [ ] Revisar arquivos, histórico, autoria, dependências e artefatos antes de publicar. Manter senhas, identificadores de usuários/dispositivos, caminhos pessoais, capturas e resultados brutos fora do Git. Seguir [SECURITY.md](../SECURITY.md).
-- [ ] Concluir a triagem de segurança do SDK FreeRDP 3.32.2 frente à release 3.33.0 e qualificar os pins, a reconstrução e os testes necessários. Essa dependência manual não está automaticamente coberta por zero alertas do Dependabot; ver a [revisão de 2026-11-05](SECURITY-REVIEW-20261105.md). Preservar os binários congelados dos ensaios anteriores.
+- [ ] Manter a triagem de segurança das dependências manuais e qualificar cada integração antes dos ensaios. O SDK público já foi atualizado para FreeRDP 3.33.0, reconstruído e validado com 18 testes offline; ver a [atualização de 2026-11-05](FREERDP-UPDATE-20261105.md). Acompanhamento dos avisos e qualificação das integrações privadas/VM são etapas separadas. Zero alertas do Dependabot não cobre automaticamente esse SDK; preservar os binários congelados dos ensaios anteriores.
 - [ ] Automatizar testes repetíveis e agrupar validações físicas com hipóteses claras, pedindo participação somente quando a prova depender de hardware ou de uma confirmação do Windows.
 
 O próximo trabalho é o item 1, seguido da integração dos itens 2 e 3. Áudio, jogos, interface final e instalador do motor dependem dessa prova. Não há prazo ou percentual de conclusão confiável enquanto a integração nativa central permanecer aberta.
