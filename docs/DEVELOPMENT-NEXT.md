@@ -1,6 +1,12 @@
 # Continuidade do desenvolvimento
 
-Atualizado em 2026-11-04. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
+Atualizado em 2026-11-05. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
+
+## Retomada imediata: identificação do display
+
+A candidata de `GetHardwareId` já está ligada à sessão viva e à conferência do pacote assinado, com 62 verificações próprias, 26 de atribuição, contratos e análise estática aprovados. Os sucessos locais de pacote usam fixture separada; não são execução do serviço real. Integrar agora o produtor do registro protegido ao staging real da VM, antes do listener, e preparar uma rodada finita nova para observar a chamada. Depois integrar a autorização do driver e `OnDriverLoad` com instância e sessão reais. Esse método recebe `LPCWSTR` emprestado na interface `IWRdsWddmIddProps1`, não um handle. Consulte os critérios e limites do [laboratório 020](lab/020-native-display-identification.md); preservar o watchdog e os freezes anteriores.
+
+O SDK atualizado para FreeRDP 3.33.0 e seu adaptador já passaram em controle separado com o serviço real usando o provedor anterior congelado, com restauração auditada. Essa prova de dependência não valida a nova identificação nem o display. A sequência abaixo preserva o histórico das etapas anteriores.
 
 ## Objetivo
 

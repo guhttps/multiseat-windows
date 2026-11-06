@@ -60,6 +60,8 @@ Nenhum desses critérios substitui os outros. A observação confirma essa depen
 
 ## Pendências do produto
 
+A identificação de display posterior já tem candidata e testes locais descritos no [laboratório 020](020-native-display-identification.md). Isso não altera a observação nem o resultado completo desta rodada de entrada; carregamento gráfico e execução real da nova candidata continuam pendentes.
+
 Continuam pendentes a autenticação efetiva da segunda conta Windows, apresentação do desktop, saída física, roteamento de periféricos reais, recuperação integrada, áudio, desempenho e compatibilidade com jogos. Esta candidata privada não foi incorporada ao instalador público.
 
 A documentação de [GetInputHandles](https://learn.microsoft.com/en-us/windows/win32/api/wtsprotocol/nf-wtsprotocol-iwrdsprotocolconnection-getinputhandles) declara suporte de servidor, sem suporte em Windows cliente. O experimento em VM cliente não amplia esse contrato. Os [requisitos de clientes kernel em UMDF](https://learn.microsoft.com/en-us/windows-hardware/drivers/wdf/supporting-kernel-mode-clients-in-umdf-drivers) também precisam ser satisfeitos por operações, objetos e níveis de execução reais; compilar a configuração correspondente não comprova isso.

@@ -14,6 +14,8 @@ Este checklist organiza a conclusão do produto. O resultado detalhado e atualiz
 
 ## Checklist de conclusão, em ordem de dependência
 
+Atualização do item 1 em 2026-11-05: a candidata de identificação de display passou nos testes locais e já liga `GetHardwareId` à conferência do pacote e sessão viva. Faltam o produtor integrado do registro protegido e a prova real na VM; o carregamento permanece recusado. A próxima execução e os limites estão no [laboratório 020](lab/020-native-display-identification.md). O item continua aberto.
+
 1. [ ] **Completar o segundo terminal nativo.** GetInputHandles já entregou dois canais reais sob a atribuição viva da sessão, com fechamento observado na via de recusa. A próxima chamada bloqueada é GetHardwareId: integrar identificação, carregamento e vínculo do driver de display e a apresentação gráfica; então comprovar consultas, leituras e cancelamento pelo consumidor nativo dos dois canais. Concluir também a autenticação da segunda conta Windows, preservando o console original. O ensaio completo da entrega de handles permaneceu reprovado e sua observação válida foi analisada separadamente; nenhum resultado equivale a dois postos prontos. Cumprir o [gate nativo](architecture/0007-native-engine-gate.md).
 
 2. [ ] **Entregar dois monitores e entrada independentes.** Apresentar aplicativos externos simultaneamente nos dois monitores físicos atribuídos, verificar aceleração gráfica e encaminhar cada teclado/mouse somente ao posto correto. Demonstrar foco, movimento, cliques e teclas mantidas enquanto o outro usuário troca de aplicativo. Duas janelas cooperativas ou dois IDs de sessão não satisfazem essa prova. Registrar o caminho efetivo da imagem e da entrada.
