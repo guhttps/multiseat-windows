@@ -1,8 +1,10 @@
 # Estado do projeto
 
-Atualizado em 2026-11-04. Protótipo de pesquisa: a criação nativa de uma segunda sessão de processos foi demonstrada em VM cliente; dois terminais utilizáveis ainda não foram demonstrados. O laboratório auxiliar em Windows Server validou duas contas e entrada sintética em aplicativos externos. O objetivo continua sendo um concorrente completo do ASTER, com implementação independente.
+Atualizado em 2026-11-05. Protótipo de pesquisa: a criação nativa de uma segunda sessão de processos foi demonstrada em VM cliente; dois terminais utilizáveis ainda não foram demonstrados. O laboratório auxiliar em Windows Server validou duas contas e entrada sintética em aplicativos externos. O objetivo continua sendo um concorrente completo do ASTER, com implementação independente.
 
 ## O que funciona e foi verificado
+
+- Identificação do display: `GetHardwareId` está ligado, em candidata privada, à autoridade autenticada do serviço, atribuição viva de sessão e conferência de pacote assinado no DriverStore. Compilação/análise estática, 62 verificações da identificação, 26 de atribuição e contratos da DLL passaram. Sucessos de pacote nessa suíte usam fixture separada; o produtor do registro protegido e a execução real desta candidata na VM continuam pendentes. `OnDriverLoad` ainda recusa o carregamento. Não há prova de driver, frames ou segundo terminal. Veja o [laboratório 020](lab/020-native-display-identification.md).
 
 - Entrada nativa: o serviço real recebeu os dois canais de GetInputHandles sob a atribuição viva de NotifySessionId, e o fechamento dos três arquivos do driver foi observado na via de recusa. Cliente encerrou zero, console/processos preservados, restauração e auditoria independente aprovadas. O Windows parou em GetHardwareId com ERROR_NOT_READY; ainda não houve leitura pelo consumidor kernel. O ensaio completo ficou reprovado por coleta final expirada e sequência diferente da prevista; a observação válida foi conferida em análise separada, sem alterar o resultado original. A candidata passou também em compilação/análise estática, 28 verificações de permissões/hardlinks/ciclo de vida, validadores WDK e suítes de integração365/26/11. Não comprova segunda conta, display ou terminal. Veja o [laboratório 019](lab/019-native-input-backend.md).
 
