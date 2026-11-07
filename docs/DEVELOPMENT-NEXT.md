@@ -1,12 +1,14 @@
 # Continuidade do desenvolvimento
 
-Atualizado em 2026-11-06. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
+Atualizado em 2026-11-07. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
 
-## Retomada imediata: notificação da conexão após identificar o display
+## Retomada imediata: notificação do processo após confirmar a conexão
 
 Continuação de 2026-11-06: a V34 observou GetHardwareId retornando S_OK no serviço real, após a conferência do pacote e do registro protegido. O Windows chamou ConnectNotify em seguida; nosso componente retornou ERROR_NOT_READY. O veredito completo recusou essa sequência fora do escopo previsto. Uma revisão independente confirmou a identificação, fechamento real, saída zero do cliente e preservação do console/processos, sem alterar a reprovação ou remover eventos da reaplicação do veredito. As sete rodadas foram restauradas e auditadas. O [laboratório 020](lab/020-native-display-identification.md) descreve as evidências e limites.
 
-A próxima implementação é `ConnectNotify`: conferir o contrato do parâmetro e vincular a notificação à sessão viva, à autoridade da conexão, ao identificador já publicado e ao cancelamento. Definir o escopo da nova rodada antes de executá-la. O callback posterior NotifyCommandProcessCreated foi observado retornando cancelamento; isso não comprova processo de outra conta. Não retornar sucesso genérico nem tratar a confirmação de notificação como terminal pronto.
+Continuação de 2026-11-07: `ConnectNotify` foi implementado e confirmado com S_OK no serviço real. A rodada V35 passou no escopo definido, incluindo fechamento, saída do cliente, preservação do console, restauração e auditoria independente. A captura da chamada ocorre em memória e sua gravação é posterior, com instantes distintos. O próximo callback, `NotifyCommandProcessCreated`, retornou ERROR_NOT_READY; nenhuma chamada OnDriverLoad foi observada. Veja o [laboratório 021](lab/021-native-connection-notification.md).
+
+A próxima implementação é `NotifyCommandProcessCreated`, ligada à mesma atribuição viva, confirmação anterior da conexão, prazos e cancelamento. Respeitar o contrato de retorno imediato, sem chamadas RDS dentro da notificação. Reconhecer o aviso não comprova autenticação nem processo de outra conta; essa evidência será exigida separadamente. Definir o novo escopo antes da próxima execução e não reclassificar as rodadas anteriores.
 
 Preservar a criação do registro antes da liberação atômica do cliente e sua validade documentada de 20 segundos, sempre dentro do controle autenticado. O watchdog permanece em 120 segundos, com as margens originais. Depois integrar a autorização separada do driver e OnDriverLoad com instância e sessão reais. Esse método recebe LPCWSTR emprestado em IWRdsWddmIddProps1, não um handle. Não repetir planos consumidos nem alterar resultados anteriores; as fontes e binários congelados continuam sendo referências de comparação.
 
@@ -18,7 +20,7 @@ Produto multiseat nativo para Windows, com experiência de configuração compar
 
 ## Entrega em andamento
 
-- Próximo incremento do motor: o serviço real já recebeu os canais de GetInputHandles e o encerramento dos arquivos foi observado na via de recusa; falta consumo pelo kernel. A próxima chamada bloqueada é GetHardwareId, da integração de display. Tratar o ensaio completo reprovado e a análise separada da observação como resultados distintos. Verificar identidade/carregamento do display e sua ligação à sessão antes de afirmar entrada ou vídeo funcionais. Veja o [laboratório 019](lab/019-native-input-backend.md).
+- Próximo incremento do motor: implementar NotifyCommandProcessCreated após a confirmação real de ConnectNotify; depois integrar autorização e carregamento do display, imagem e consumo nativo dos canais de entrada. Segunda conta e dois terminais permanecem pendentes. O ensaio aprovado V35 e os ensaios anteriores reprovados têm escopos distintos, documentados no [laboratório 021](lab/021-native-connection-notification.md).
 
 - Repositório público saneado publicado, preservando histórico e resultados anteriores como privados.
 - Correções de Raw Input, conexão/cleanup do experimento C#, validação do pacote e códigos de saída.
