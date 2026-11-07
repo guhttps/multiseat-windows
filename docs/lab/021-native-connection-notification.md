@@ -39,7 +39,7 @@ As 955 referências de fontes e binários anteriores verificadas permaneceram í
 
 A rodada V35 usa plano novo, arquivos fixados por hash e restauração obrigatória seguida de auditoria independente. Mantém o cliente, os drivers de entrada e display, a validade de 20 segundos do registro, o controle de 75 segundos e a recuperação externa de 120 segundos, com as reservas anteriores.
 
-O veredito exige o identificador real, a confirmação capturada da conexão e sua gravação posterior, a próxima recusa de `NotifyCommandProcessCreated`, fechamento real, saída do cliente e preservação do console/processos. Recusa eventos ausentes, duplicados, fora de ordem, capturas expiradas, saturação e sucesso inesperado de operações ainda não implementadas. Não filtra eventos para fazer o ensaio passar. O resultado reprovado da V34 permanece intacto.
+O veredito exige o identificador real, a confirmação capturada da conexão e sua gravação posterior, a próxima recusa de `NotifyCommandProcessCreated`, fechamento real, saída do cliente e preservação do console/processos. Recusa eventos ausentes, duplicados, fora de ordem, capturas fora do intervalo esperado, saturação e sucesso inesperado de operações ainda não implementadas. Não filtra eventos para fazer o ensaio passar. O resultado reprovado da V34 permanece intacto.
 
 Na execução real, a sequência observada foi: canais de entrada retornados, pacote conferido, identificador retornado, `ConnectNotify` reconhecido com `S_OK`, `NotifyCommandProcessCreated` recusado com `ERROR_NOT_READY`, gravação posterior do reconhecimento e fechamento real. A captura ocorreu depois do identificador e antes da próxima notificação; foi gravada cerca de 250 ms depois. Não houve saturação, contenção registrada ou chamada `OnDriverLoad`.
 
