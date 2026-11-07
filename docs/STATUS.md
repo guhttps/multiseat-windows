@@ -1,8 +1,10 @@
 # Estado do projeto
 
-Atualizado em 2026-11-06. Protótipo de pesquisa: a criação nativa de uma segunda sessão de processos foi demonstrada em VM cliente; dois terminais utilizáveis ainda não foram demonstrados. O laboratório auxiliar em Windows Server validou duas contas e entrada sintética em aplicativos externos. O objetivo continua sendo um concorrente completo do ASTER, com implementação independente.
+Atualizado em 2026-11-07. Protótipo de pesquisa: a criação nativa de uma segunda sessão de processos foi demonstrada em VM cliente; dois terminais utilizáveis ainda não foram demonstrados. O laboratório auxiliar em Windows Server validou duas contas e entrada sintética em aplicativos externos. O objetivo continua sendo um concorrente completo do ASTER, com implementação independente.
 
 ## O que funciona e foi verificado
+
+- ConnectNotify reconhecido com S_OK no serviço real da VM, após GetHardwareId. A rodada V35 passou no escopo definido; a próxima notificação, NotifyCommandProcessCreated, foi recusada com ERROR_NOT_READY. Fechamento real, saída zero do cliente, preservação do console/processos, restauração e auditoria independente aprovados. A candidata usa validação e captura limitadas em memória na chamada, com gravação posterior autenticada; passou em 46 verificações da notificação, 71 de identificação e regressões herdadas. Não houve OnDriverLoad, frames ou segunda conta autenticada. Veja o [laboratório 021](lab/021-native-connection-notification.md).
 
 - GetHardwareId retornou S_OK no serviço real da VM, após a conferência do registro protegido e do pacote assinado. A conexão avançou para ConnectNotify, ainda recusado com ERROR_NOT_READY. O ensaio completo V34 ficou reprovado por sair da sequência prevista; uma análise separada confirmou o retorno do identificador, fechamento real, saída zero do cliente e preservação do console/processos, mantendo a reprovação original. Restauração e auditoria independente passaram. Não houve OnDriverLoad, frames ou segundo terminal comprovados. Veja o [laboratório 020](lab/020-native-display-identification.md).
 
