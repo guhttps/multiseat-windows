@@ -109,7 +109,7 @@ jobs:
       # Only SARIF from this fresh hosted runner is sent to GitHub Code Scanning.
       # A completed scan or zero alerts does not establish that the product is safe.
       - name: Analyze and submit security findings
-        uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           category: /language:${{ matrix.language }}
           output: ${{ runner.temp }}/codeql-results-${{ matrix.language }}
