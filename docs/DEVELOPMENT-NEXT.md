@@ -2,7 +2,13 @@
 
 Atualizado em 2026-11-20. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
 
-## Retomada imediata: motivo da desconexão depois da nova sessão
+## Retomada imediata: autorização de início do driver de display
+
+Continuação de 2026-11-20, depois da V37: o motivo da desconexão é `0x11` (`ERRINFO_CLOSE_STACK_ON_DRIVER_FAILURE`). O driver de display da sessão não concluiu a inicialização. Isso é coerente com a autorização de 160 bytes do driver, que ainda é intencionalmente ausente. Essa autorização exige a sessão real, o PID e a criação do TermService, os hashes de imagem, o nonce de provisionamento e prazos de até 120 segundos, numa pasta de SYSTEM/Administradores com leitura somente para LocalService. Entre `NotifySessionId` e a falha do driver há cerca de 300 ms. Veja o [laboratório 023](lab/023-native-disconnect-reason.md).
+
+Próxima candidata: um produtor de autorização local que roda como SYSTEM, já aguardando antes da liberação do cliente. Ele recebe a sessão real pelo canal autenticado do provedor, sem adivinhar o número, e grava a autorização atomicamente com a ACL exigida pelo driver. Depois disso, tratar `OnDriverLoad` com a instância e a sessão reais. Manter a janela de inicialização de 40 segundos, o guarda de 120 segundos, a restauração e a auditoria.
+
+## Histórico: motivo da desconexão depois da nova sessão
 
 Continuação de 2026-11-20: `NotifyCommandProcessCreated` foi reconhecido no serviço real (V36c). O Windows criou CSRSS e Winlogon na sessão 2, preservando o console, e depois desconectou com PreDisconnect, SetErrorInfo e Close, sem GetVideoHandle ou OnDriverLoad. A rodada está reprovada pelo escopo do coordenador, que não previa novos processos de sessão. A reaplicação do veredito foi aprovada. V36 e V36b foram reprovadas pela janela de inicialização de 25 segundos; a V36c usou 40 segundos e tentativas de login de no máximo 5 segundos, com o guarda de 120 segundos inalterado. Veja o [laboratório 022](lab/022-native-command-process-notification.md).
 
