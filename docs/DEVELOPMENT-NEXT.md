@@ -1,8 +1,19 @@
 # Continuidade do desenvolvimento
 
-Atualizado em 2026-11-07. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
+Atualizado em 2026-11-20. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
 
-## Retomada imediata: notificação do processo após confirmar a conexão
+## Retomada imediata: motivo da desconexão depois da nova sessão
+
+Continuação de 2026-11-20: `NotifyCommandProcessCreated` foi reconhecido no serviço real (V36c). O Windows criou CSRSS e Winlogon na sessão 2, preservando o console, e depois desconectou com PreDisconnect, SetErrorInfo e Close, sem GetVideoHandle ou OnDriverLoad. A rodada está reprovada pelo escopo do coordenador, que não previa novos processos de sessão. A reaplicação do veredito foi aprovada. V36 e V36b foram reprovadas pela janela de inicialização de 25 segundos; a V36c usou 40 segundos e tentativas de login de no máximo 5 segundos, com o guarda de 120 segundos inalterado. Veja o [laboratório 022](lab/022-native-command-process-notification.md).
+
+Próxima candidata:
+1. Gravar o código recebido em `SetErrorInfo` e os identificadores consultados em `QueryProperty`.
+2. No coordenador, tratar o surgimento de uma nova sessão como evidência esperada e continuar exigindo que os processos das sessões existentes e o console fiquem preservados.
+3. Só depois implementar o que o serviço exigir. Os candidatos são os canais virtuais e as propriedades, depois GetVideoHandle/OnDriverLoad com a autorização separada do driver e, por fim, a autenticação da segunda conta.
+
+Manter a janela de 40 segundos e o guarda de 120 segundos. Não reclassificar as rodadas reprovadas.
+
+## Histórico: notificação do processo após confirmar a conexão
 
 Continuação de 2026-11-06: a V34 observou GetHardwareId retornando S_OK no serviço real, após a conferência do pacote e do registro protegido. O Windows chamou ConnectNotify em seguida; nosso componente retornou ERROR_NOT_READY. O veredito completo recusou essa sequência fora do escopo previsto. Uma revisão independente confirmou a identificação, fechamento real, saída zero do cliente e preservação do console/processos, sem alterar a reprovação ou remover eventos da reaplicação do veredito. As sete rodadas foram restauradas e auditadas. O [laboratório 020](lab/020-native-display-identification.md) descreve as evidências e limites.
 
