@@ -14,6 +14,8 @@ Este checklist organiza a conclusão do produto. O resultado detalhado e atualiz
 
 ## Checklist de conclusão, em ordem de dependência
 
+Atualização do item 1 em 2026-11-20, depois da V37: o serviço desconecta a nova sessão com `0x11`, porque o driver de display remoto não concluiu a inicialização. A rodada V37 passou, com restauração e auditoria. O próximo bloqueio concreto é produzir a autorização de início do driver com a sessão real e tratar `OnDriverLoad`. Detalhes no [laboratório 023](lab/023-native-disconnect-reason.md).
+
 Atualização do item 1 em 2026-11-20: NotifyCommandProcessCreated foi reconhecido no serviço real, e o Windows criou CSRSS e Winlogon na sessão 2, preservando o console. Em seguida, o serviço desconectou, sem GetVideoHandle ou OnDriverLoad. A V36c ficou reprovada porque o coordenador não esperava novos processos de sessão; a V36 e a V36b foram reprovadas pela janela de inicialização. As três rodadas foram restauradas e auditadas. Próximo passo: gravar o motivo da desconexão e tratar a nova sessão como evidência esperada. Detalhes no [laboratório 022](lab/022-native-command-process-notification.md). O item continua aberto.
 
 Atualização do item 1 em 2026-11-07: GetHardwareId e ConnectNotify retornaram S_OK no serviço real; a rodada V35 passou, com restauração e auditoria independente. A próxima demanda é NotifyCommandProcessCreated, ainda recusado com ERROR_NOT_READY. Os resultados reprovados anteriores foram preservados. Carregamento do display, frames e segunda conta continuam pendentes; detalhes no [laboratório 021](lab/021-native-connection-notification.md). O item continua aberto.
