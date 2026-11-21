@@ -110,7 +110,10 @@ Config parse_config(const std::wstring& json) {
         throw std::runtime_error("Unsupported schema.");
     Config result;
     const std::wstring address = named_string(root.Get(), L"server_address");
-    if (!private_ipv4(address)) throw std::runtime_error("A literal RFC1918 lab IPv4 address is required.");
+    // RFC1918 isolated lab network, or the same machine (Windows Server with the
+    // RDS role, loopback seats). Only the literal 127.0.0.1 is accepted for loopback.
+    if (!private_ipv4(address) && address != L"127.0.0.1")
+        throw std::runtime_error("A literal RFC1918 lab IPv4 address or 127.0.0.1 is required.");
     result.server_address = utf8(address);
     result.server_port = named_uint(root.Get(), L"server_port", 1, 65535);
     const std::wstring pin = named_string(root.Get(), L"certificate_sha256");

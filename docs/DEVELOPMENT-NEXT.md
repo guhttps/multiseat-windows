@@ -2,7 +2,20 @@
 
 Atualizado em 2026-11-21. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
 
-## Retomada imediata: decisão de arquitetura depois do limite de sessão ativa única
+## Retomada imediata: postos locais no Windows Server
+
+Continuação de 2026-11-21: o responsável pelo projeto escolheu o Windows Server com a role RDS. As rodadas S1 a S1d mostraram, na VM do laboratório, o cliente de postos rodando na sessão do console e conectando as duas contas por `127.0.0.1`. As três sessões ficaram ativas ao mesmo tempo, com imagem e entrada por posto. Veja o [laboratório 026](lab/026-server-loopback-seats.md).
+
+Próximo trabalho:
+1. Teste em computador real com Windows Server: dois monitores e dois pares de teclado e mouse físicos, com conferência visual.
+2. Login de cada pessoa no próprio posto, sem credenciais configuradas.
+3. Áudio por posto.
+4. Aceleração gráfica e codecs nas sessões; medir desempenho.
+5. Instalação e início automático do cliente de postos no console.
+
+Instalar o Windows Server num computador real exige confirmação explícita do responsável pelo projeto.
+
+## Histórico: decisão de arquitetura depois do limite de sessão ativa única
 
 Continuação de 2026-11-21, depois das rodadas V52 a V54:
 - Um agente local na sessão 2 lê a tela de login por acessibilidade e digita o login. A segunda conta foi autenticada.
