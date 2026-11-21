@@ -134,6 +134,9 @@ public:
     RecoveryPhase recovery_phase = RecoveryPhase::Initial;
     ULONGLONG recovery_phase_since = 0;
     HotplugKind hotplug_kind = HotplugKind::None;
+    std::wstring snapshot_dir;
+    bool post_snapshot_done = false;
+    ULONGLONG fixture_delay_ms = 30000;
     HotplugPhase hotplug_phase = HotplugPhase::Initial;
     ULONGLONG hotplug_phase_since = 0;
     std::unique_ptr<RouterHotplugFixture> hotplug_fixture;
@@ -419,6 +422,46 @@ public:
             transports[0]->state() != TransportState::Idle || transports[1]->state() != TransportState::Idle)
             throw std::runtime_error("Invalidation smoke changed input or transport boundaries.");
     }
+    // Unattended synthetic check only: write a small 24-bit BMP of each seat's
+    // current remote frame (lab guest accounts only) to the given local folder.
+    void snapshot(const wchar_t* label) {
+        if (snapshot_dir.empty()) return;
+        constexpr int width = 640, height = 360, row = ((width * 3) + 3) & ~3;
+        for (unsigned i = 0; i < transports.size(); ++i) {
+            bool ok = false;
+            HDC screen = GetDC(nullptr);
+            HDC memory = screen ? CreateCompatibleDC(screen) : nullptr;
+            BITMAPINFO info{};
+            info.bmiHeader.biSize = sizeof(info.bmiHeader); info.bmiHeader.biWidth = width; info.bmiHeader.biHeight = height;
+            info.bmiHeader.biPlanes = 1; info.bmiHeader.biBitCount = 24; info.bmiHeader.biCompression = BI_RGB;
+            void* bits = nullptr;
+            HBITMAP bitmap = memory ? CreateDIBSection(screen, &info, DIB_RGB_COLORS, &bits, nullptr, 0) : nullptr;
+            if (memory && bitmap && bits && transports[i]) {
+                HGDIOBJ old = SelectObject(memory, bitmap);
+                ok = transports[i]->draw(memory, RECT{ 0, 0, width, height });
+                GdiFlush();
+                SelectObject(memory, old);
+                if (ok) {
+                    const DWORD image = static_cast<DWORD>(row) * height;
+                    BITMAPFILEHEADER file{};
+                    file.bfType = 0x4D42; file.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+                    file.bfSize = file.bfOffBits + image;
+                    const std::wstring path = snapshot_dir + L"\\seat" + std::to_wstring(i + 1) + L"-" + label + L".bmp";
+                    HANDLE handle = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+                    DWORD written = 0;
+                    ok = handle != INVALID_HANDLE_VALUE &&
+                        WriteFile(handle, &file, sizeof(file), &written, nullptr) && written == sizeof(file) &&
+                        WriteFile(handle, &info.bmiHeader, sizeof(info.bmiHeader), &written, nullptr) && written == sizeof(info.bmiHeader) &&
+                        WriteFile(handle, bits, image, &written, nullptr) && written == image;
+                    if (handle != INVALID_HANDLE_VALUE) CloseHandle(handle);
+                }
+            }
+            if (bitmap) DeleteObject(bitmap);
+            if (memory) DeleteDC(memory);
+            if (screen) ReleaseDC(nullptr, screen);
+            std::wcout << L"SNAPSHOT seat" << (i + 1) << L" " << label << (ok ? L" written" : L" unavailable") << std::endl;
+        }
+    }
     void click_fixture_editor(unsigned index) {
         auto send = [this, index](InputEvent event) {
             if (!transports[index]->enqueue(event)) throw std::runtime_error("Synthetic RDP send failed.");
@@ -693,10 +736,10 @@ public:
         if (hotplug_kind != HotplugKind::None) { tick_router_hotplug(now); invalidate(); return; }
         if (recovery) { tick_recovery(now); invalidate(); return; }
         if (synthetic) {
-            if (!sent_synthetic && now - started >= 120000)
+            if (!sent_synthetic && now - started >= 90000 + fixture_delay_ms)
                 throw std::runtime_error("Synthetic transport check timed out.");
             if (both_connected() && !connected_since) connected_since = now;
-            const ULONGLONG fixture_delay = unattended ? 30000 : 10000;
+            const ULONGLONG fixture_delay = unattended ? fixture_delay_ms : 10000;
             if (!sent_synthetic && connected_since && now - connected_since >= fixture_delay) {
                 if (!unattended && !foreground()) {
                     if (!waiting_foreground_reported) {
@@ -704,12 +747,17 @@ public:
                         waiting_foreground_reported = true;
                     }
                 } else {
+                    snapshot(L"pre");
                     send_fixture(0); send_fixture(1);
                     sent_synthetic = true; synthetic_sent_at = now;
                     std::cout << "FRAMES: seat1=" << transports[0]->frame_count() << " seat2=" <<
                         transports[1]->frame_count() << std::endl;
                     std::cout << "SENT: two per-context mouse/key fixtures; guest observation is required." << std::endl;
                 }
+            }
+            if (sent_synthetic && !post_snapshot_done && now - synthetic_sent_at >= 20000) {
+                post_snapshot_done = true;
+                snapshot(L"post");
             }
             if (sent_synthetic && now - synthetic_sent_at >= 45000) { close(0); return; }
         }
@@ -739,12 +787,22 @@ public:
         std::vector<RECT> monitors;
         if (!smoke && !EnumDisplayMonitors(nullptr, nullptr, collect_monitor, reinterpret_cast<LPARAM>(&monitors)))
             throw std::runtime_error("Cannot enumerate monitors.");
-        if (!smoke) for (const SeatConfig& seat : config.seats)
+        // Unattended synthetic checks inside a single-monitor lab guest (loopback on
+        // Windows Server) tile both panels on that monitor. Normal mode still
+        // requires one distinct physical monitor per seat.
+        const bool tile_single = !smoke && synthetic && unattended && monitors.size() == 1;
+        if (!smoke && !tile_single) for (const SeatConfig& seat : config.seats)
             if (seat.monitor_index >= monitors.size()) throw std::runtime_error("A configured monitor is unavailable.");
         for (unsigned i = 0; i < views.size(); ++i) {
             views[i].app = this;
             views[i].index = i;
-            const RECT rectangle = smoke ? RECT{ 0, 0, 800, 640 } : monitors[config.seats[i].monitor_index];
+            RECT rectangle = smoke ? RECT{ 0, 0, 800, 640 } : RECT{};
+            if (tile_single) {
+                const RECT whole = monitors[0];
+                const LONG half = (whole.right - whole.left) / 2;
+                rectangle = RECT{ whole.left + half * static_cast<LONG>(i), whole.top,
+                    whole.left + half * static_cast<LONG>(i + 1), whole.bottom };
+            } else if (!smoke) rectangle = monitors[config.seats[i].monitor_index];
             const std::wstring title = L"Multiseat — laboratório RDP — posto " + std::to_wstring(i + 1);
             views[i].window = CreateWindowExW(smoke || hotplug_kind != HotplugKind::None ? WS_EX_NOACTIVATE : 0, window_class, title.c_str(),
                 WS_OVERLAPPEDWINDOW, rectangle.left, rectangle.top, rectangle.right - rectangle.left,
@@ -901,6 +959,8 @@ int wmain(int argc, wchar_t** argv) {
                         std::cout << "ROUTER-HOTPLUG: synthetic router devices; hidden views; no host Raw Input or PnP changes." << std::endl;
                     Application application(std::move(config), false, options.synthetic, options.unattended, options.recovery,
                         options.recovery_index, options.close_view_recovery, options.router_hotplug);
+                    application.snapshot_dir = options.snapshot_dir;
+                    application.fixture_delay_ms = static_cast<ULONGLONG>(options.fixture_delay_seconds) * 1000;
                     result = application.run();
                 }
             }

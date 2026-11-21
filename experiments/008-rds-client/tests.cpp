@@ -46,6 +46,9 @@ void option_tests() {
             option.recovery_index == (seat == L"1" ? 0U : 1U));
     }
     require(parse({L"--transport-check", L"--unattended-fixtures", L"--router-hotplug", L"keyboard"}).recovery_index == 0);
+    require(parse({L"--transport-check", L"--unattended-fixtures", L"--frame-snapshots", L"lab-snapshots"}).snapshot_dir == L"lab-snapshots");
+    require(parse({L"--transport-check", L"--unattended-fixtures"}).fixture_delay_seconds == 30);
+    require(parse({L"--transport-check", L"--unattended-fixtures", L"--fixture-delay", L"150"}).fixture_delay_seconds == 150);
     for (const auto& values : std::vector<std::vector<std::wstring>>{
         {L"--recovery-seat", L"2"}, {L"--transport-check", L"--recovery-cycle"},
         {L"--close-view-recovery"}, {L"--transport-check", L"--unattended-fixtures", L"--close-view-recovery"},
@@ -68,7 +71,19 @@ void option_tests() {
         {L"--transport-check", L"--unattended-fixtures", L"--router-hotplug", L"mouse", L"--close-view-recovery"},
         {L"--transport-check", L"--unattended-fixtures", L"--router-hotplug", L"mouse", L"--recovery-seat", L"3"},
         {L"--smoke", L"--router-hotplug", L"keyboard"},
-        {L"--check-config", L"--router-hotplug", L"mouse"}})
+        {L"--check-config", L"--router-hotplug", L"mouse"},
+        {L"--frame-snapshots", L"lab-snapshots"}, {L"--transport-check", L"--frame-snapshots", L"lab-snapshots"},
+        {L"--transport-check", L"--unattended-fixtures", L"--frame-snapshots"},
+        {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--frame-snapshots", L"lab-snapshots"},
+        {L"--transport-check", L"--unattended-fixtures", L"--frame-snapshots", L"a", L"--frame-snapshots", L"b"},
+        {L"--fixture-delay", L"60"}, {L"--transport-check", L"--fixture-delay", L"60"},
+        {L"--transport-check", L"--unattended-fixtures", L"--fixture-delay", L"29"},
+        {L"--transport-check", L"--unattended-fixtures", L"--fixture-delay", L"241"},
+        {L"--transport-check", L"--unattended-fixtures", L"--fixture-delay", L"060"},
+        {L"--transport-check", L"--unattended-fixtures", L"--fixture-delay", L"6O"},
+        {L"--transport-check", L"--unattended-fixtures", L"--fixture-delay"},
+        {L"--transport-check", L"--unattended-fixtures", L"--fixture-delay", L"60", L"--fixture-delay", L"90"},
+        {L"--transport-check", L"--unattended-fixtures", L"--recovery-cycle", L"--fixture-delay", L"60"}})
         rejects([&] { parse_options(values); });
 }
 void fixture_control_tests() {
@@ -162,7 +177,8 @@ void configuration_tests() {
     require(config.server_address == "10.73.12.2" && config.server_port == 3389 &&
         config.seats[0].seat_id == 1 && config.seats[1].username == L"LabSeatB" &&
         config.seats[1].monitor_index == 1 && config.certificate_sha256[1] == 0x11);
-    for (const std::wstring& address : { L"127.0.0.1", L"169.254.1.2", L"8.8.8.8", L"localhost",
+    require(parse_config(replace_once(fixture(), L"10.73.12.2", L"127.0.0.1")).server_address == "127.0.0.1");
+    for (const std::wstring& address : { L"127.0.0.2", L"127.1", L"169.254.1.2", L"8.8.8.8", L"localhost",
         L"10.01.2.3", L"10.256.0.1", L"10.1.2.3.extra", L"10.1.2.3:3389", L"10.1.2.3\\u0000bad" })
         rejects([&] { parse_config(replace_once(fixture(), L"10.73.12.2", address)); });
     for (const auto& change : std::vector<std::pair<std::wstring, std::wstring>>{

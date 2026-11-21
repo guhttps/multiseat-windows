@@ -10,6 +10,9 @@ struct Options {
     unsigned recovery_index{};
     HotplugKind router_hotplug = HotplugKind::None;
     std::wstring path;
+    std::wstring snapshot_dir;
+    unsigned fixture_delay_seconds = 30;
+    bool fixture_delay_given = false;
 };
 inline Options parse_options(std::span<const std::wstring> arguments) {
     Options result;
@@ -41,6 +44,22 @@ inline Options parse_options(std::span<const std::wstring> arguments) {
             recovery_seat_given = true;
         }
         else if (argument == L"--config" && i + 1 < arguments.size()) result.path = arguments[++i];
+        else if (argument == L"--fixture-delay") {
+            // Fresh loopback logons may need longer before the guest fixtures exist.
+            if (result.fixture_delay_given || i + 1 >= arguments.size())
+                throw std::runtime_error("A single fixture delay in seconds is required.");
+            const auto& text = arguments[++i];
+            if (text.empty() || text.size() > 3 || text[0] == L'0' ||
+                text.find_first_not_of(L"0123456789") != std::wstring::npos)
+                throw std::runtime_error("Fixture delay must be 30 to 240 seconds.");
+            const unsigned value = static_cast<unsigned>(std::stoul(text));
+            if (value < 30 || value > 240) throw std::runtime_error("Fixture delay must be 30 to 240 seconds.");
+            result.fixture_delay_seconds = value; result.fixture_delay_given = true;
+        }
+        else if (argument == L"--frame-snapshots" && i + 1 < arguments.size() && result.snapshot_dir.empty()) {
+            result.snapshot_dir = arguments[++i];
+            if (result.snapshot_dir.empty()) throw std::runtime_error("A snapshot directory is required.");
+        }
         else throw std::runtime_error("Unknown or incomplete lab command option.");
     }
     if (static_cast<int>(result.smoke) + result.self_test + result.synthetic + result.check_config > 1 ||
@@ -48,6 +67,11 @@ inline Options parse_options(std::span<const std::wstring> arguments) {
         (result.recovery && (!result.synthetic || !result.unattended)) ||
         (recovery_seat_given && !result.recovery && result.router_hotplug == HotplugKind::None) ||
         (result.close_view_recovery && !result.recovery) ||
+        // Frame snapshots are diagnostic evidence for the unattended synthetic check only.
+        (result.fixture_delay_given && (!result.synthetic || !result.unattended || result.recovery ||
+            result.router_hotplug != HotplugKind::None)) ||
+        (!result.snapshot_dir.empty() && (!result.synthetic || !result.unattended || result.recovery ||
+            result.router_hotplug != HotplugKind::None)) ||
         (result.router_hotplug != HotplugKind::None &&
             (!result.synthetic || !result.unattended || result.recovery || result.close_view_recovery)))
         throw std::runtime_error("Conflicting command options.");
