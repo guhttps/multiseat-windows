@@ -14,6 +14,8 @@ Este checklist organiza a conclusão do produto. O resultado detalhado e atualiz
 
 ## Checklist de conclusão, em ordem de dependência
 
+Atualização do item 1 em 2026-11-21, depois das rodadas V52 a V54: a segunda conta fez login interativo na tela de login da sessão 2 e foi autenticada, mas o Windows 11 Pro mantém uma única sessão interativa ativa. A arbitragem padrão negou a conta comum e ofereceu à administradora desconectar o console. O projeto não altera o serviço de Área de Trabalho Remota, o licenciamento nem os limites de sessão. A escolha da arquitetura (máquina virtual por posto ou edição licenciada para várias sessões) está pendente. Detalhes no [laboratório 025](lab/025-native-session-arbitration.md). O item continua aberto.
+
 Atualização do item 1 em 2026-11-20, depois das rodadas V38 a V51: a sessão 2 chegou à tela de login do Windows 11 cliente, com o console preservado, usando o driver de display remoto da caixa. O nosso IDD ainda falha antes de `DeviceAdd`, e a segunda conta não entrou porque o login automático não ocorreu. Próximo passo: imagem e entrada da sessão 2 no segundo posto, com login interativo. Detalhes no [laboratório 024](lab/024-native-session2-logon-screen.md). O item continua aberto.
 
 Atualização do item 1 em 2026-11-20, depois da V37: o serviço desconecta a nova sessão com `0x11`, porque o driver de display remoto não concluiu a inicialização. A rodada V37 passou, com restauração e auditoria. O próximo bloqueio concreto é produzir a autorização de início do driver com a sessão real e tratar `OnDriverLoad`. Detalhes no [laboratório 023](lab/023-native-disconnect-reason.md).

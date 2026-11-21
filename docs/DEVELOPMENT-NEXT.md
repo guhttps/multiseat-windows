@@ -1,8 +1,23 @@
 # Continuidade do desenvolvimento
 
-Atualizado em 2026-11-20. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
+Atualizado em 2026-11-21. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
 
-## Retomada imediata: imagem e entrada da sessão 2
+## Retomada imediata: decisão de arquitetura depois do limite de sessão ativa única
+
+Continuação de 2026-11-21, depois das rodadas V52 a V54:
+- Um agente local na sessão 2 lê a tela de login por acessibilidade e digita o login. A segunda conta foi autenticada.
+- A arbitragem padrão do Windows 11 Pro mantém uma única sessão interativa ativa: nega a conta comum e oferece à administradora desconectar o console.
+- A sessão 2 ainda não tem saída de vídeo ativa; a tela de login só pode ser capturada pela própria janela.
+
+Veja o [laboratório 025](lab/025-native-session-arbitration.md).
+
+O projeto não altera o serviço de Área de Trabalho Remota, o licenciamento nem os limites de sessão. Antes de novas rodadas, o responsável pelo projeto escolhe a arquitetura:
+1. Uma máquina virtual por posto adicional, com aceleração gráfica e entrada encaminhada pelo nosso apresentador.
+2. Uma edição do Windows licenciada para várias sessões, usando o motor atual.
+
+Manter o guarda de 180 segundos, a biblioteca de recuperação v2, a restauração e a auditoria.
+
+## Histórico: imagem e entrada da sessão 2
 
 Continuação de 2026-11-20, depois das rodadas V38 a V51: a sessão 2 chega à tela de login quando o provedor informa o driver de display remoto da caixa (`RdpIdd_IndirectDisplay`) e mantém a conexão por um tempo limitado. O nosso IDD falha com `STATUS_WDF_BUSY` antes de `DeviceAdd`. As credenciais entregues pelo protocolo não geram login automático. Veja o [laboratório 024](lab/024-native-session2-logon-screen.md).
 
