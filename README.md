@@ -4,6 +4,12 @@ Implementação independente em pesquisa para permitir que várias pessoas usem 
 
 **Este repositório contém um protótipo de pesquisa. Ainda não oferece estações independentes para aplicativos externos e jogos.**
 
+## Situação atual (2026-11-21)
+
+- **Windows 11 Pro:** a segunda conta chega a fazer login na própria sessão, mas o Windows mantém uma única sessão interativa ativa. Uma conta comum é negada, e uma administradora recebe a oferta de desconectar quem está no console. O projeto não altera o serviço de Área de Trabalho Remota, o licenciamento nem os limites de sessão do Windows. Veja o [laboratório 025](docs/lab/025-native-session-arbitration.md).
+- **Caminho escolhido: Windows Server com a role RDS**, uma edição licenciada para várias sessões. Numa VM com Windows Server 2025, o cliente de postos rodou na sessão do console e conectou duas contas pelo endereço local `127.0.0.1`. As três sessões ficaram ativas ao mesmo tempo, com imagem nos dois postos e entrada sem cruzamento entre eles. Veja o [laboratório 026](docs/lab/026-server-loopback-seats.md).
+- **Próximo passo:** teste num computador real com Windows Server, com dois monitores e dois pares de teclado e mouse físicos. Depois vêm o login de cada pessoa no próprio posto, o áudio por posto e a aceleração gráfica.
+
 ## Interface e instalação experimental
 
 O painel permite visualizar monitores, teclados, mouses e saídas de áudio, organizar um plano local para duas estações e abrir os testes do protótipo. Salvar esse plano ainda não ativa postos independentes.
@@ -23,11 +29,13 @@ Versão **`v0.1.0-experimental.1`** publicada. Também há [ZIP portátil](https
 | Identificação de dois teclados e dois mouses | Implementada via Raw Input |
 | Associação e contagem separada nos painéis próprios | Demonstrada em laboratório |
 | Recuperação de periféricos nos painéis próprios | Demonstrada em laboratório |
-| Contas Windows e foco independentes para aplicativos externos | Ainda não demonstrados |
+| Duas contas ativas ao mesmo tempo no Windows 11 Pro | Bloqueado pelo limite de sessão única do Windows; não contornado |
+| Duas contas e entrada por posto no próprio Windows Server (loopback) | Demonstrado em VM com entrada sintética; teste físico pendente |
+| Contas Windows e foco independentes para aplicativos externos | Demonstrados no Windows Server com entrada sintética; teste físico pendente |
 | Atribuição exclusiva de monitor, entrada e áudio por estação | Em pesquisa |
 | Duas contas de League of Legends simultâneas | Não validado |
 | Instalador e ZIP do painel de pesquisa | Publicados; instalação/desinstalação verificadas |
-| Motor de postos, serviço, driver aplicável e atualização do produto | Dependem da prova de integração nativa |
+| Motor de postos, serviço, driver aplicável e atualização do produto | Dependem da prova física no Windows Server |
 
 ## Compilar e verificar
 
@@ -54,6 +62,7 @@ O teste interativo dos painéis próprios está em [laboratório 005](docs/lab/0
 - [Escopo e aceitação](docs/PRODUCT-SCOPE.md): requisitos para duas estações e jogos.
 - [Roadmap](ROADMAP.md) e [Issues](https://github.com/guhttps/multiseat-windows/issues): trabalho por evidência.
 - [Investigação do motor](docs/architecture/0005-backend-investigation.md): candidatos e limitações.
+- [Cliente de postos RDS](experiments/008-rds-client/README.md): postos por sessão no Windows Server, inclusive no próprio computador.
 - [Segurança e privacidade](SECURITY.md): execução, relatórios e publicação.
 
 Não envie senhas, tokens, nomes de usuário, caminhos pessoais, relatórios brutos, imagens de tela ou identificadores do equipamento para Issues e commits. Resultados de laboratório ficam em `docs/lab/results/`, fora do Git.
