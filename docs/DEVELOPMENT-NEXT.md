@@ -2,7 +2,19 @@
 
 Atualizado em 2026-11-20. Este arquivo registra o ponto técnico de retomada; não agenda execução nem contorna limites de uso do aplicativo.
 
-## Retomada imediata: autorização de início do driver de display
+## Retomada imediata: imagem e entrada da sessão 2
+
+Continuação de 2026-11-20, depois das rodadas V38 a V51: a sessão 2 chega à tela de login quando o provedor informa o driver de display remoto da caixa (`RdpIdd_IndirectDisplay`) e mantém a conexão por um tempo limitado. O nosso IDD falha com `STATUS_WDF_BUSY` antes de `DeviceAdd`. As credenciais entregues pelo protocolo não geram login automático. Veja o [laboratório 024](lab/024-native-session2-logon-screen.md).
+
+Próximo trabalho:
+1. Manter a sessão 2 ativa pelo provedor, sem o cliente de teste.
+2. Um agente local na sessão 2 captura a área de trabalho, inclusive a tela de login, e aplica a entrada.
+3. Um apresentador no console mostra a imagem no segundo monitor e encaminha somente o segundo teclado e mouse.
+4. Comprovar o login interativo da segunda conta com as duas sessões ativas.
+
+Manter o guarda de 180 segundos, a biblioteca de recuperação v2, a restauração e a auditoria.
+
+## Histórico: autorização de início do driver de display
 
 Continuação de 2026-11-20, depois da V37: o motivo da desconexão é `0x11` (`ERRINFO_CLOSE_STACK_ON_DRIVER_FAILURE`). O driver de display da sessão não concluiu a inicialização. Isso é coerente com a autorização de 160 bytes do driver, que ainda é intencionalmente ausente. Essa autorização exige a sessão real, o PID e a criação do TermService, os hashes de imagem, o nonce de provisionamento e prazos de até 120 segundos, numa pasta de SYSTEM/Administradores com leitura somente para LocalService. Entre `NotifySessionId` e a falha do driver há cerca de 300 ms. Veja o [laboratório 023](lab/023-native-disconnect-reason.md).
 
